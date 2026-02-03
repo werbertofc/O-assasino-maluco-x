@@ -1,7 +1,10 @@
 --[[ 
-    WERBERT HUB V10 - FINAL COM RESET AO SPAWNAR
+    WERBERT HUB V11 - VERSÃO VISUAL (SEM FARM/TP)
     Criador: @werbert_ofc
-    Novidade: O ESP reseta (todos ficam brancos) toda vez que você nasce/spawna.
+    Funcionalidades: 
+    - ESP Players (Vermelho se tiver WorldModel)
+    - ESP Arma (Azul quando dropada)
+    - X-RAY
 ]]
 
 local Players = game:GetService("Players")
@@ -15,24 +18,23 @@ local LocalPlayer = Players.LocalPlayer
 -- CONFIGURAÇÕES
 -- ==============================================================================
 local settings = {
-    autoGun = false,
-    autoFarm = false,
-    esp = false,
-    xray = false
+    esp = false,      -- Players
+    gunEsp = false,   -- Arma caída
+    xray = false      -- Paredes
 }
 
-local knownArmed = {} -- Tabela que guarda os assassinos
+local knownArmed = {} -- Lista de suspeitos
 local originalTransparency = {}
 
 -- Limpa UI antiga
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- MENU VISUAL (ESTILO V1 - GARANTIDO)
+-- MENU VISUAL (ESTILO V1 - O MELHOR)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V10"
+ScreenGui.Name = "WerbertHub_V11"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -60,10 +62,10 @@ local function makeDraggable(frame)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- Frame
+-- Frame Principal
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 250, 0, 280)
-MainFrame.Position = UDim2.new(0.5, -125, 0.5, -140)
+MainFrame.Size = UDim2.new(0, 250, 0, 240) -- Diminuí a altura pois tem menos botões
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -120)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -103,7 +105,7 @@ MiniBtn.Font = Enum.Font.GothamBold
 MiniBtn.TextSize = 24
 MiniBtn.Parent = MainFrame
 
--- Ícone
+-- Ícone Minimizado
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 45, 0, 45)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
@@ -122,7 +124,7 @@ FloatIcon.MouseButton1Click:Connect(function() FloatIcon.Visible = false; MainFr
 makeDraggable(MainFrame)
 makeDraggable(FloatIcon)
 
--- Criar Botões
+-- Criador de Botões
 local function createToggle(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.85, 0, 0, 40)
@@ -150,49 +152,28 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- [NOVO] LÓGICA DE RESET AO SPAWNAR
+-- LÓGICA DO SCRIPT
 -- ==============================================================================
 
+-- RESET AO SPAWNAR
 local function resetDetection()
-    knownArmed = {} -- Zera a lista de suspeitos
-    
-    -- Notificação visual para você saber que resetou
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "NOVA RODADA";
-        Text = "ESP Resetado! Todos brancos.";
-        Duration = 3;
-    })
+    knownArmed = {} 
+    game.StarterGui:SetCore("SendNotification", {Title = "RODADA NOVA"; Text = "ESP Resetado!"; Duration = 3;})
 end
+LocalPlayer.CharacterAdded:Connect(resetDetection)
+Workspace.ChildAdded:Connect(function(c) if c.Name == "Map" then resetDetection() end end)
 
--- Conecta ao evento: Quando seu boneco nasce (CharacterAdded)
-LocalPlayer.CharacterAdded:Connect(function(newChar)
-    resetDetection()
-end)
-
--- Backup: Se o mapa mudar, também reseta (garantia dupla)
-Workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Map" then 
-        resetDetection()
-    end
-end)
-
-
--- ==============================================================================
--- LOOPS E FUNÇÕES
--- ==============================================================================
-
--- 1. DETECTOR DE WORLDMODEL (Scanner)
+-- 1. DETECTOR DE PLAYERS (WORLDMODEL)
 task.spawn(function()
     while true do
         if settings.esp then
             local charactersFolder = Workspace:FindFirstChild("Characters")
             if charactersFolder then
                 for _, charFolder in pairs(charactersFolder:GetChildren()) do
+                    -- Se achar WorldModel, é perigo
                     if charFolder:FindFirstChild("WorldModel") then
                         local player = Players:FindFirstChild(charFolder.Name)
-                        if player then
-                            knownArmed[player] = true
-                        end
+                        if player then knownArmed[player] = true end
                     end
                 end
             end
@@ -201,7 +182,7 @@ task.spawn(function()
     end
 end)
 
--- 2. ESP VISUAL
+-- 2. ESP DE PLAYERS (VISUAL)
 task.spawn(function()
     while true do
         if settings.esp then
@@ -214,15 +195,16 @@ task.spawn(function()
                     if not char then char = plr.Character end
 
                     if char and char:FindFirstChild("Head") then
-                        local color = Color3.fromRGB(255, 255, 255) -- Branco (Padrão)
+                        local color = Color3.fromRGB(255, 255, 255) -- Inocente (Branco)
                         local txt = "Inocente"
                         
-                        -- SE TIVER NA LISTA DE ARMADOS
+                        -- Se tiver WorldModel
                         if knownArmed[plr] then
-                            color = Color3.fromRGB(255, 0, 0) -- VERMELHO!
+                            color = Color3.fromRGB(255, 0, 0) -- PERIGO (Vermelho)
                             txt = "PERIGO (ARMADO)"
                         end
 
+                        -- Highlight
                         local hl = char:FindFirstChild("WerbertHighlight")
                         if not hl then 
                             hl = Instance.new("Highlight", char) 
@@ -232,6 +214,7 @@ task.spawn(function()
                         hl.FillColor = color
                         hl.OutlineColor = color
                         
+                        -- Nome
                         local bg = char.Head:FindFirstChild("WerbertTag")
                         if not bg then
                             bg = Instance.new("BillboardGui", char.Head)
@@ -252,7 +235,7 @@ task.spawn(function()
                 end
             end
         else
-            -- Limpeza
+            -- Limpar ESP Players
             for _, plr in pairs(Players:GetPlayers()) do
                 local char = plr.Character
                 if char then
@@ -265,56 +248,73 @@ task.spawn(function()
     end
 end)
 
--- 3. AUTO FARM MOEDAS (Sem Rubberband)
+-- 3. ESP DA ARMA (NOVO - AZUL)
 task.spawn(function()
     while true do
-        if settings.autoFarm then
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local hrp = char.HumanoidRootPart
-                local foundCoin = false
+        if settings.gunEsp then
+            -- Procura a pasta Entities certa (sem MapModel)
+            local targetFolder = nil
+            for _, c in pairs(Workspace:GetChildren()) do
+                if c.Name == "Entities" and not c:FindFirstChild("MapModel") then
+                    targetFolder = c
+                    break
+                end
+            end
+
+            if targetFolder then
+                local gun = targetFolder:FindFirstChild("DroppedGun")
                 
-                for _, v in pairs(Workspace:GetDescendants()) do
-                    if (v.Name == "Coin_Server" or v.Name == "Coin") and v:IsA("BasePart") and v.Transparency == 0 then
-                        hrp.CFrame = v.CFrame
-                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                        foundCoin = true
-                        break 
+                -- Se a arma existir no chão
+                if gun then
+                    -- Cria Highlight Azul
+                    if not gun:FindFirstChild("WerbertGunESP") then
+                        local hl = Instance.new("Highlight")
+                        hl.Name = "WerbertGunESP"
+                        hl.FillColor = Color3.fromRGB(0, 0, 255) -- AZUL
+                        hl.OutlineColor = Color3.fromRGB(0, 0, 255)
+                        hl.FillTransparency = 0.4
+                        hl.OutlineTransparency = 0
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        hl.Adornee = gun
+                        hl.Parent = gun
+                        
+                        -- Cria Texto "ARMA"
+                        local bg = Instance.new("BillboardGui")
+                        bg.Name = "WerbertGunTag"
+                        bg.Size = UDim2.new(0, 80, 0, 40)
+                        bg.StudsOffset = Vector3.new(0, 1, 0)
+                        bg.AlwaysOnTop = true
+                        bg.Parent = gun
+                        
+                        local txt = Instance.new("TextLabel")
+                        txt.Size = UDim2.new(1,0,1,0)
+                        txt.BackgroundTransparency = 1
+                        txt.Text = "ARMA"
+                        txt.TextColor3 = Color3.fromRGB(0, 100, 255) -- Azul claro
+                        txt.Font = Enum.Font.GothamBlack
+                        txt.TextSize = 14
+                        txt.TextStrokeTransparency = 0
+                        txt.Parent = bg
                     end
                 end
-                
-                if foundCoin then task.wait(0.15) else task.wait(0.5) end
-            else
-                task.wait(1)
             end
         else
-            task.wait(0.5)
+            -- Remove o ESP da arma se desativar
+            for _, c in pairs(Workspace:GetChildren()) do
+                if c.Name == "Entities" then
+                    local gun = c:FindFirstChild("DroppedGun")
+                    if gun then
+                        if gun:FindFirstChild("WerbertGunESP") then gun.WerbertGunESP:Destroy() end
+                        if gun:FindFirstChild("WerbertGunTag") then gun.WerbertGunTag:Destroy() end
+                    end
+                end
+            end
         end
+        task.wait(0.5)
     end
 end)
 
--- 4. AUTO GUN
-RunService.RenderStepped:Connect(function()
-    if settings.autoGun then
-        local targetFolder = nil
-        for _, c in pairs(Workspace:GetChildren()) do
-            if c.Name == "Entities" and not c:FindFirstChild("MapModel") then
-                targetFolder = c
-                break
-            end
-        end
-        if targetFolder then
-            local gun = targetFolder:FindFirstChild("DroppedGun")
-            local char = LocalPlayer.Character
-            if gun and char and char:FindFirstChild("HumanoidRootPart") then
-                char.HumanoidRootPart.CFrame = gun.CFrame
-                char.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
-            end
-        end
-    end
-end)
-
--- 5. X-RAY
+-- 4. X-RAY
 local function toggleXray(state)
     if state then
         for _, part in pairs(Workspace:GetDescendants()) do
@@ -337,9 +337,8 @@ end
 -- BOTÕES
 -- ==============================================================================
 
-createToggle("AUTO GUN (Pegar Arma)", 50, function(state) settings.autoGun = state end)
-createToggle("AUTO FARM (Moedas)", 100, function(state) settings.autoFarm = state end)
-createToggle("ESP (Wallhack)", 150, function(state) settings.esp = state end)
-createToggle("X-RAY (Visão)", 200, function(state) settings.xray = state; toggleXray(state) end)
+createToggle("ESP PLAYERS (Wallhack)", 50, function(state) settings.esp = state end)
+createToggle("ESP ARMA (Azul)", 100, function(state) settings.gunEsp = state end)
+createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V10", Text="Sistema de Reset Ativado!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V11", Text="Visual + Gun ESP Ativo!", Duration=5})
