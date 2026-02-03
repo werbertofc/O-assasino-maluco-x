@@ -1,7 +1,7 @@
 --[[ 
-    WERBERT HUB V7 - DETECÇÃO EXATA (PASTA CHARACTERS)
+    WERBERT HUB V9 - DETECÇÃO EXATA (WORLDMODEL)
     Criador: @werbert_ofc
-    Novidade: Busca a faca direto na pasta 'Characters' do Workspace
+    Lógica: Workspace > Characters > Player > WorldModel = PERIGO (VERMELHO)
 ]]
 
 local Players = game:GetService("Players")
@@ -11,7 +11,9 @@ local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- Configurações Globais
+-- ==============================================================================
+-- CONFIGURAÇÕES
+-- ==============================================================================
 local settings = {
     autoGun = false,
     autoFarm = false,
@@ -19,19 +21,18 @@ local settings = {
     xray = false
 }
 
-local knownKiller = nil
-local knownSheriff = nil
+local knownArmed = {} -- Lista de quem tem WorldModel
 local originalTransparency = {}
 
 -- Limpa UI antiga
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- MENU VISUAL (ESTILO V1 - O QUE FUNCIONA)
+-- MENU VISUAL (ESTILO SIMPLES - GARANTIDO QUE FUNCIONA)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V7"
+ScreenGui.Name = "WerbertHub_V9"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -59,11 +60,11 @@ local function makeDraggable(frame)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- Frame Principal
+-- Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 250, 0, 280)
 MainFrame.Position = UDim2.new(0.5, -125, 0.5, -140)
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -79,7 +80,7 @@ Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.Parent = MainFrame
 
--- Botões de Janela
+-- Botão Fechar
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "X"
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -91,6 +92,7 @@ CloseBtn.TextSize = 18
 CloseBtn.Parent = MainFrame
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
+-- Botão Minimizar
 local MiniBtn = Instance.new("TextButton")
 MiniBtn.Text = "-"
 MiniBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -101,7 +103,7 @@ MiniBtn.Font = Enum.Font.GothamBold
 MiniBtn.TextSize = 24
 MiniBtn.Parent = MainFrame
 
--- Botão Minimizado
+-- Ícone
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 45, 0, 45)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
@@ -120,7 +122,7 @@ FloatIcon.MouseButton1Click:Connect(function() FloatIcon.Visible = false; MainFr
 makeDraggable(MainFrame)
 makeDraggable(FloatIcon)
 
--- Criador de Botões
+-- Criar Botões
 local function createToggle(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.85, 0, 0, 40)
@@ -148,138 +150,60 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- LÓGICA V7 - AGORA USANDO A PASTA "CHARACTERS"
+-- LÓGICA DE DETECÇÃO (A PARTE IMPORTANTE)
 -- ==============================================================================
 
--- Função auxiliar para encontrar o personagem correto na pasta Characters
-local function getCharacterFromSpecialFolder(playerName)
-    local charFolder = Workspace:FindFirstChild("Characters")
-    if charFolder then
-        return charFolder:FindFirstChild(playerName)
-    end
-    return nil -- Se não achar a pasta ou o player
-end
-
--- 1. DETECTOR DE ASSASSINO (LÓGICA DA FACA NA MÃO)
+-- 1. SCANNER DE WORLDMODEL (LOOP RÁPIDO)
 task.spawn(function()
     while true do
         if settings.esp then
-            local charFolder = Workspace:FindFirstChild("Characters")
+            -- Acessa a pasta Workspace > Characters
+            local charactersFolder = Workspace:FindFirstChild("Characters")
             
-            if charFolder then
-                -- Varre todos os filhos da pasta Characters
-                for _, char in pairs(charFolder:GetChildren()) do
-                    local player = Players:FindFirstChild(char.Name)
+            if charactersFolder then
+                -- Verifica cada pasta de jogador lá dentro
+                for _, charFolder in pairs(charactersFolder:GetChildren()) do
                     
-                    if player and player ~= LocalPlayer then
-                        -- Verifica se tem a FACA equipada
-                        if char:FindFirstChild("Knife") then
-                            knownKiller = player
-                            -- Notificação única (se ainda não sabia)
-                            game.StarterGui:SetCore("SendNotification", {Title="ASSASSINO REVELADO"; Text=player.Name .. " puxou a faca!"; Duration=3;})
-                        end
-
-                        -- Verifica se tem a ARMA equipada
-                        if char:FindFirstChild("Gun") or char:FindFirstChild("Revolver") then
-                            knownSheriff = player
+                    -- A LÓGICA MÁGICA: Procura "WorldModel" dentro da pasta do player
+                    if charFolder:FindFirstChild("WorldModel") then
+                        
+                        local player = Players:FindFirstChild(charFolder.Name)
+                        if player then
+                            -- Marca como PERIGO (Armado)
+                            knownArmed[player] = true
                         end
                     end
                 end
             end
         end
-        task.wait(0.2) -- Verifica 5 vezes por segundo (rápido!)
+        task.wait(0.2) -- Verifica 5x por segundo
     end
 end)
 
--- 2. AUTO FARM MOEDAS (ANTI-RUBBERBAND)
-task.spawn(function()
-    while true do
-        if settings.autoFarm then
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local hrp = char.HumanoidRootPart
-                local foundCoin = false
-                
-                for _, v in pairs(Workspace:GetDescendants()) do
-                    if (v.Name == "Coin_Server" or v.Name == "Coin") and v:IsA("BasePart") and v.Transparency == 0 then
-                        hrp.CFrame = v.CFrame
-                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) -- FREIA O PERSONAGEM
-                        foundCoin = true
-                        break 
-                    end
-                end
-                
-                if foundCoin then
-                    task.wait(0.15) -- Tempo pro servidor processar
-                else
-                    task.wait(0.5)
-                end
-            else
-                task.wait(1)
-            end
-        else
-            task.wait(0.5)
-        end
-    end
-end)
-
--- 3. AUTO GUN (PASTA ENTITIES)
-RunService.RenderStepped:Connect(function()
-    if settings.autoGun then
-        local targetFolder = nil
-        for _, c in pairs(Workspace:GetChildren()) do
-            if c.Name == "Entities" and not c:FindFirstChild("MapModel") then
-                targetFolder = c
-                break
-            end
-        end
-        
-        if targetFolder then
-            local gun = targetFolder:FindFirstChild("DroppedGun")
-            local char = LocalPlayer.Character
-            if gun and char and char:FindFirstChild("HumanoidRootPart") then
-                char.HumanoidRootPart.CFrame = gun.CFrame
-                char.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0) -- FREIA
-            end
-        end
-    end
-end)
-
--- 4. ESP VISUAL (USANDO A PASTA CHARACTERS PARA RENDERIZAR)
+-- 2. ESP VISUAL (APLICA O VERMELHO)
 task.spawn(function()
     while true do
         if settings.esp then
-            -- O ESP precisa desenhar no personagem VISUAL do jogo. 
-            -- Se o jogo usa a pasta Characters para lógica, o modelo visual deve ser o mesmo.
-            
+            local charactersFolder = Workspace:FindFirstChild("Characters")
+
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer then
-                    -- Tenta pegar o char da pasta especial OU o padrão do Roblox
-                    local char = getCharacterFromSpecialFolder(plr.Name) or plr.Character
+                    -- Tenta achar o boneco na pasta Characters ou no Workspace normal
+                    local char = nil
+                    if charactersFolder then char = charactersFolder:FindFirstChild(plr.Name) end
+                    if not char then char = plr.Character end
 
                     if char and char:FindFirstChild("Head") then
-                        local color = Color3.fromRGB(255, 255, 255)
+                        local color = Color3.fromRGB(255, 255, 255) -- Branco (Inocente)
                         local txt = "Inocente"
                         
-                        -- Lógica de Cores
-                        if plr == knownKiller then
-                            color = Color3.fromRGB(255, 0, 0)
-                            txt = "ASSASSINO"
-                        elseif plr == knownSheriff then
-                            color = Color3.fromRGB(0, 0, 255)
-                            txt = "XERIFE"
-                        elseif char:FindFirstChild("Knife") then
-                             -- Redundância: se achar a faca agora, marca também
-                            color = Color3.fromRGB(255, 0, 0)
-                            txt = "ASSASSINO"
-                            knownKiller = plr
-                        elseif char:FindFirstChild("Gun") then
-                            color = Color3.fromRGB(0, 0, 255)
-                            txt = "XERIFE"
-                            knownSheriff = plr
+                        -- SE ESTIVER NA LISTA DE ARMADOS (TEM WORLDMODEL)
+                        if knownArmed[plr] then
+                            color = Color3.fromRGB(255, 0, 0) -- VERMELHO!
+                            txt = "PERIGO (ARMADO)"
                         end
 
-                        -- Highlight
+                        -- Highlight (Ver através da parede)
                         local hl = char:FindFirstChild("WerbertHighlight")
                         if not hl then 
                             hl = Instance.new("Highlight", char) 
@@ -289,7 +213,7 @@ task.spawn(function()
                         hl.FillColor = color
                         hl.OutlineColor = color
                         
-                        -- Nome na cabeça
+                        -- Texto (Nome + Status)
                         local bg = char.Head:FindFirstChild("WerbertTag")
                         if not bg then
                             bg = Instance.new("BillboardGui", char.Head)
@@ -310,9 +234,9 @@ task.spawn(function()
                 end
             end
         else
-            -- Limpeza
+            -- Limpar ESP se desligar
             for _, plr in pairs(Players:GetPlayers()) do
-                local char = getCharacterFromSpecialFolder(plr.Name) or plr.Character
+                local char = plr.Character
                 if char then
                     if char:FindFirstChild("WerbertHighlight") then char.WerbertHighlight:Destroy() end
                     if char:FindFirstChild("Head") and char.Head:FindFirstChild("WerbertTag") then char.Head.WerbertTag:Destroy() end
@@ -320,6 +244,55 @@ task.spawn(function()
             end
         end
         task.wait(0.5)
+    end
+end)
+
+-- 3. AUTO FARM MOEDAS (SEM RUBBERBAND)
+task.spawn(function()
+    while true do
+        if settings.autoFarm then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                local foundCoin = false
+                
+                for _, v in pairs(Workspace:GetDescendants()) do
+                    if (v.Name == "Coin_Server" or v.Name == "Coin") and v:IsA("BasePart") and v.Transparency == 0 then
+                        hrp.CFrame = v.CFrame
+                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) -- FREIO
+                        foundCoin = true
+                        break 
+                    end
+                end
+                
+                if foundCoin then task.wait(0.15) else task.wait(0.5) end
+            else
+                task.wait(1)
+            end
+        else
+            task.wait(0.5)
+        end
+    end
+end)
+
+-- 4. AUTO GUN
+RunService.RenderStepped:Connect(function()
+    if settings.autoGun then
+        local targetFolder = nil
+        for _, c in pairs(Workspace:GetChildren()) do
+            if c.Name == "Entities" and not c:FindFirstChild("MapModel") then
+                targetFolder = c
+                break
+            end
+        end
+        if targetFolder then
+            local gun = targetFolder:FindFirstChild("DroppedGun")
+            local char = LocalPlayer.Character
+            if gun and char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.CFrame = gun.CFrame
+                char.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            end
+        end
     end
 end)
 
@@ -353,10 +326,7 @@ createToggle("X-RAY (Visão)", 200, function(state) settings.xray = state; toggl
 
 -- Resetar ao mudar mapa
 Workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Map" then 
-        knownKiller = nil
-        knownSheriff = nil
-    end
+    if child.Name == "Map" then knownArmed = {} end
 end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V7 Carregado", Text="Busca na pasta CHARACTERS ativa!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V9", Text="Detector de WorldModel ATIVO!", Duration=5})
