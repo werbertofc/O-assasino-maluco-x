@@ -1,7 +1,7 @@
 --[[ 
-    WERBERT HUB V9 - DETECÇÃO EXATA (WORLDMODEL)
+    WERBERT HUB V10 - FINAL COM RESET AO SPAWNAR
     Criador: @werbert_ofc
-    Lógica: Workspace > Characters > Player > WorldModel = PERIGO (VERMELHO)
+    Novidade: O ESP reseta (todos ficam brancos) toda vez que você nasce/spawna.
 ]]
 
 local Players = game:GetService("Players")
@@ -21,18 +21,18 @@ local settings = {
     xray = false
 }
 
-local knownArmed = {} -- Lista de quem tem WorldModel
+local knownArmed = {} -- Tabela que guarda os assassinos
 local originalTransparency = {}
 
 -- Limpa UI antiga
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- MENU VISUAL (ESTILO SIMPLES - GARANTIDO QUE FUNCIONA)
+-- MENU VISUAL (ESTILO V1 - GARANTIDO)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V9"
+ScreenGui.Name = "WerbertHub_V10"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -150,37 +150,58 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- LÓGICA DE DETECÇÃO (A PARTE IMPORTANTE)
+-- [NOVO] LÓGICA DE RESET AO SPAWNAR
 -- ==============================================================================
 
--- 1. SCANNER DE WORLDMODEL (LOOP RÁPIDO)
+local function resetDetection()
+    knownArmed = {} -- Zera a lista de suspeitos
+    
+    -- Notificação visual para você saber que resetou
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "NOVA RODADA";
+        Text = "ESP Resetado! Todos brancos.";
+        Duration = 3;
+    })
+end
+
+-- Conecta ao evento: Quando seu boneco nasce (CharacterAdded)
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    resetDetection()
+end)
+
+-- Backup: Se o mapa mudar, também reseta (garantia dupla)
+Workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Map" then 
+        resetDetection()
+    end
+end)
+
+
+-- ==============================================================================
+-- LOOPS E FUNÇÕES
+-- ==============================================================================
+
+-- 1. DETECTOR DE WORLDMODEL (Scanner)
 task.spawn(function()
     while true do
         if settings.esp then
-            -- Acessa a pasta Workspace > Characters
             local charactersFolder = Workspace:FindFirstChild("Characters")
-            
             if charactersFolder then
-                -- Verifica cada pasta de jogador lá dentro
                 for _, charFolder in pairs(charactersFolder:GetChildren()) do
-                    
-                    -- A LÓGICA MÁGICA: Procura "WorldModel" dentro da pasta do player
                     if charFolder:FindFirstChild("WorldModel") then
-                        
                         local player = Players:FindFirstChild(charFolder.Name)
                         if player then
-                            -- Marca como PERIGO (Armado)
                             knownArmed[player] = true
                         end
                     end
                 end
             end
         end
-        task.wait(0.2) -- Verifica 5x por segundo
+        task.wait(0.2)
     end
 end)
 
--- 2. ESP VISUAL (APLICA O VERMELHO)
+-- 2. ESP VISUAL
 task.spawn(function()
     while true do
         if settings.esp then
@@ -188,22 +209,20 @@ task.spawn(function()
 
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer then
-                    -- Tenta achar o boneco na pasta Characters ou no Workspace normal
                     local char = nil
                     if charactersFolder then char = charactersFolder:FindFirstChild(plr.Name) end
                     if not char then char = plr.Character end
 
                     if char and char:FindFirstChild("Head") then
-                        local color = Color3.fromRGB(255, 255, 255) -- Branco (Inocente)
+                        local color = Color3.fromRGB(255, 255, 255) -- Branco (Padrão)
                         local txt = "Inocente"
                         
-                        -- SE ESTIVER NA LISTA DE ARMADOS (TEM WORLDMODEL)
+                        -- SE TIVER NA LISTA DE ARMADOS
                         if knownArmed[plr] then
                             color = Color3.fromRGB(255, 0, 0) -- VERMELHO!
                             txt = "PERIGO (ARMADO)"
                         end
 
-                        -- Highlight (Ver através da parede)
                         local hl = char:FindFirstChild("WerbertHighlight")
                         if not hl then 
                             hl = Instance.new("Highlight", char) 
@@ -213,7 +232,6 @@ task.spawn(function()
                         hl.FillColor = color
                         hl.OutlineColor = color
                         
-                        -- Texto (Nome + Status)
                         local bg = char.Head:FindFirstChild("WerbertTag")
                         if not bg then
                             bg = Instance.new("BillboardGui", char.Head)
@@ -234,7 +252,7 @@ task.spawn(function()
                 end
             end
         else
-            -- Limpar ESP se desligar
+            -- Limpeza
             for _, plr in pairs(Players:GetPlayers()) do
                 local char = plr.Character
                 if char then
@@ -247,7 +265,7 @@ task.spawn(function()
     end
 end)
 
--- 3. AUTO FARM MOEDAS (SEM RUBBERBAND)
+-- 3. AUTO FARM MOEDAS (Sem Rubberband)
 task.spawn(function()
     while true do
         if settings.autoFarm then
@@ -259,7 +277,7 @@ task.spawn(function()
                 for _, v in pairs(Workspace:GetDescendants()) do
                     if (v.Name == "Coin_Server" or v.Name == "Coin") and v:IsA("BasePart") and v.Transparency == 0 then
                         hrp.CFrame = v.CFrame
-                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) -- FREIO
+                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                         foundCoin = true
                         break 
                     end
@@ -324,9 +342,4 @@ createToggle("AUTO FARM (Moedas)", 100, function(state) settings.autoFarm = stat
 createToggle("ESP (Wallhack)", 150, function(state) settings.esp = state end)
 createToggle("X-RAY (Visão)", 200, function(state) settings.xray = state; toggleXray(state) end)
 
--- Resetar ao mudar mapa
-Workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Map" then knownArmed = {} end
-end)
-
-game.StarterGui:SetCore("SendNotification", {Title="Hub V9", Text="Detector de WorldModel ATIVO!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V10", Text="Sistema de Reset Ativado!", Duration=5})
