@@ -1,10 +1,13 @@
 --[[ 
-    WERBERT HUB V39 - CORREÇÃO DE LÓGICA INVERTIDA
+    WERBERT HUB V41 - LÓGICA DE ELIMINAÇÃO (CORREÇÃO FINAL)
     Criador: @werbert_ofc
     
-    Correção Crítica:
-    - Impede que o Assassino seja marcado como Xerife.
-    - Lógica: "Se tem arma na mão mas a WornGun continua nas costas, NÃO É XERIFE -> É ASSASSINO."
+    Correção Definitiva:
+    1. Lógica Visual (WorldModel): Funciona SEMPRE (Sem timer).
+       - Se tem arma na mão e arma nas costas -> É Faca na mão -> ASSASSINO.
+       - Se tem arma na mão e faca nas costas -> É Arma na mão -> XERIFE.
+    2. Lógica Passiva (WornItems): Funciona só APÓS 20s.
+       - Serve para pegar quem ainda não puxou a arma.
 ]]
 
 local Players = game:GetService("Players")
@@ -27,7 +30,7 @@ local settings = {
 }
 
 local roleMemory = {} 
-local scannerActive = false 
+local scannerActive = false -- Apenas para detecção passiva
 local isInLobby = true
 local monitoredFolders = {}
 
@@ -38,7 +41,7 @@ if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V39_LogicFix"
+ScreenGui.Name = "WerbertHub_V41_Elimination"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -69,7 +72,7 @@ end
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 260, 0, 360)
 MainFrame.Position = UDim2.new(0.5, -130, 0.5, -180)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 10, 10) -- Tom avermelhado leve
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -78,8 +81,8 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "ASSASSINO LOUCO X (V39)"
-Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.Text = "ASSASSINO LOUCO X (V41)"
+Title.TextColor3 = Color3.fromRGB(0, 255, 100)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 15
 Title.Parent = MainFrame
@@ -118,9 +121,9 @@ MiniBtn.Parent = MainFrame
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-FloatIcon.Text = "V39"
-FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+FloatIcon.Text = "V41"
+FloatIcon.TextColor3 = Color3.fromRGB(0, 0, 0)
 FloatIcon.Font = Enum.Font.GothamBlack
 FloatIcon.TextSize = 18
 FloatIcon.Visible = false
@@ -160,7 +163,7 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- 1. SISTEMA DE TIMER / LOBBY (V38 MANTIDO)
+-- 1. SISTEMA DE TIMER / LOBBY
 -- ==============================================================================
 
 local function checkLocation()
@@ -173,7 +176,6 @@ local function checkLocation()
     
     if mapParts then
         local referencePart = mapParts:FindFirstChildWhichIsA("BasePart", true)
-        
         if referencePart then
             local distance = (root.Position - referencePart.Position).Magnitude
             
@@ -182,9 +184,9 @@ local function checkLocation()
                     isInLobby = true
                     scannerActive = false
                     roleMemory = {}
-                    StatusLabel.Text = "STATUS: LOBBY (Resetado)"
+                    StatusLabel.Text = "STATUS: LOBBY (Pausado)"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-                    game.StarterGui:SetCore("SendNotification", {Title="Hub V39", Text="Lobby Detectado", Duration=3})
+                    game.StarterGui:SetCore("SendNotification", {Title="Hub V41", Text="Resetado (Lobby)", Duration=3})
                 end
             else
                 if isInLobby then
@@ -192,15 +194,15 @@ local function checkLocation()
                     task.spawn(function()
                         for i = 20, 1, -1 do
                             if isInLobby then return end
-                            StatusLabel.Text = "ATIVANDO EM: " .. i .. "s"
+                            StatusLabel.Text = "AGUARDANDO: " .. i .. "s"
                             StatusLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
                             task.wait(1)
                         end
                         if not isInLobby then
                             scannerActive = true
-                            StatusLabel.Text = "STATUS: SCANNER ATIVO"
+                            StatusLabel.Text = "STATUS: DETECÇÃO TOTAL"
                             StatusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-                            game.StarterGui:SetCore("SendNotification", {Title="Hub V39", Text="Análise Iniciada!", Duration=3})
+                            game.StarterGui:SetCore("SendNotification", {Title="Hub V41", Text="Modo Full Scan Ativo!", Duration=3})
                         end
                     end)
                 end
@@ -217,42 +219,56 @@ task.spawn(function()
 end)
 
 -- ==============================================================================
--- 2. LÓGICA DE INVESTIGAÇÃO (CORRIGIDA V39)
+-- 2. LÓGICA DE INVESTIGAÇÃO (CORRIGIDA V41)
 -- ==============================================================================
 
 function analyzePlayer(folder)
-    if not scannerActive then return end
-    
     local playerName = folder.Name
-    
-    -- [1] DETECÇÃO DIRETA POR FALTA DE ITEM (PRIORIDADE)
-    if not folder:FindFirstChild("WornKnife") then
-        roleMemory[playerName] = "Murderer"
-        return -- Se não tem faca, ACABOU. É Assassino.
-    end
-    
-    if not folder:FindFirstChild("WornGun") then
-        -- Se falta a arma, é provavelmente Xerife. Mas vamos conferir abaixo.
-        if roleMemory[playerName] ~= "Murderer" then
-            roleMemory[playerName] = "Sheriff"
-        end
-    end
+    if playerName == LocalPlayer.Name then return end
 
-    -- [2] DETECÇÃO POR ARMA NA MÃO (LÓGICA INVERTIDA)
+    -- [PARTE A] DETECÇÃO VISUAL (WORLDMODEL)
+    -- Essa parte roda SEMPRE, ignorando o timer de 20s.
+    -- Se ele puxou a arma, ele se entrega.
+    
     if folder:FindFirstChild("WorldModel") then
         
-        -- CHEQUE DO ASSASSINO:
-        -- Se ele tem arma na mão E TEM A WORNGUN nas costas...
-        -- Ele NÃO PODE ser Xerife. Então ele É O ASSASSINO.
+        -- Lógica de Eliminação:
+        -- Se tem arma na mão E tem WornGun nas costas...
+        -- Só pode ser FACA na mão. -> ASSASSINO.
         if folder:FindFirstChild("WornGun") then
             roleMemory[playerName] = "Murderer"
+            return
         end
 
-        -- CHEQUE DO XERIFE:
-        -- Se ele tem arma na mão E TEM A WORNKNIFE nas costas...
-        -- Ele NÃO PODE ser Assassino. Então ele É O XERIFE.
+        -- Se tem arma na mão E tem WornKnife nas costas...
+        -- Só pode ser ARMA na mão. -> XERIFE.
         if folder:FindFirstChild("WornKnife") then
-            -- Só marca se não tiver marcado como assassino antes
+            -- Só marca se a gente não sabia que ele era assassino antes
+            if roleMemory[playerName] ~= "Murderer" then
+                roleMemory[playerName] = "Sheriff"
+                return
+            end
+        end
+        
+        -- Se sumiu TUDO das costas e tem arma na mão?
+        -- Prioridade: Assassino (Faca é mais comum de bugar)
+        if not folder:FindFirstChild("WornGun") and not folder:FindFirstChild("WornKnife") then
+             if roleMemory[playerName] ~= "Sheriff" then
+                 roleMemory[playerName] = "Murderer"
+             end
+        end
+    end
+
+    -- [PARTE B] DETECÇÃO PASSIVA (WORNITEMS)
+    -- Essa parte SÓ roda depois dos 20 segundos.
+    
+    if scannerActive then
+        if not folder:FindFirstChild("WornKnife") then
+            roleMemory[playerName] = "Murderer"
+        end
+        
+        if not folder:FindFirstChild("WornGun") then
+            -- Se não tem arma, e não é o assassino... é Xerife.
             if roleMemory[playerName] ~= "Murderer" then
                 roleMemory[playerName] = "Sheriff"
             end
@@ -278,20 +294,19 @@ local function startMonitoring()
     end
 end
 
--- Loop de Varredura Constante (Garante que a lógica roda sempre)
+-- LOOP RÁPIDO (0.1s)
+-- Verifica constantemente para não perder o momento do saque
 task.spawn(function()
     while true do
-        if settings.esp and scannerActive then
+        if settings.esp then
             local charactersFolder = Workspace:FindFirstChild("Characters")
             if charactersFolder then
                 for _, folder in pairs(charactersFolder:GetChildren()) do
-                    if folder.Name ~= LocalPlayer.Name then
-                        analyzePlayer(folder)
-                    end
+                    analyzePlayer(folder)
                 end
             end
         end
-        task.wait(0.2) -- Um pouco mais rápido pra pegar a troca
+        task.wait(0.1) -- Muito rápido
     end
 end)
 
@@ -469,10 +484,10 @@ local function toggleXray(state)
 end
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Auto-Scan)", 60, function(state) settings.esp = state end)
+createToggle("ESP PLAYERS (Auto-Elim)", 60, function(state) settings.esp = state end)
 createToggle("ESP ARMA (Azul)", 105, function(state) settings.gunEsp = state end)
 createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
 createToggle("SPEED (Correr +)", 195, function(state) settings.speed = state end)
 createToggle("FULLBRIGHT (Luz)", 240, function(state) settings.fullbright = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V39", Text="Lógica Dupla Sherif/Murderer", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V41", Text="Lógica de Eliminação Ativa!", Duration=5})
