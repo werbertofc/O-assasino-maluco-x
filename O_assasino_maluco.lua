@@ -1,39 +1,35 @@
 --[[ 
-    WERBERT HUB V18 - DETECÇÃO ULTRA RÁPIDA (HEARTBEAT)
+    WERBERT HUB V21 - VELOCIDADE MÁXIMA
     Criador: @werbert_ofc
-    Melhorias:
-    - Verifica 60 vezes por segundo (Sem delay).
-    - Lógica da "Arma no Chão" para detectar Assassino instantaneamente.
+    Melhoria: Detecção e Visual rodando a 0.1s (Instantâneo)
 ]]
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 -- ==============================================================================
 -- CONFIGURAÇÕES
 -- ==============================================================================
 local settings = {
-    esp = false,      
-    gunEsp = false,   
-    xray = false      
+    esp = false,
+    gunEsp = false,
+    xray = false
 }
 
-local roleCache = {} -- [Player] = "Murderer" / "Sheriff"
+local roleMemory = {} 
 local originalTransparency = {}
 
--- Limpa UI antiga
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- MENU VISUAL (SIMPLES V1)
+-- MENU VISUAL (V1)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V18"
+ScreenGui.Name = "WerbertHub_V21"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -74,7 +70,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
 Title.Text = "Criador: @werbert_ofc"
-Title.TextColor3 = Color3.fromRGB(255, 50, 50) -- Vermelho Agressivo
+Title.TextColor3 = Color3.fromRGB(0, 255, 150)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.Parent = MainFrame
@@ -145,137 +141,113 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- LÓGICA V18: HEARTBEAT (LOOP MÁXIMA VELOCIDADE)
+-- LÓGICA V21: SINCRONIZADA E RÁPIDA
 -- ==============================================================================
 
--- Função para verificar se a arma está dropada no chão
-local function isGunOnGround()
-    -- Procura rápido nas pastas Entities
-    for _, child in pairs(Workspace:GetChildren()) do
-        if child.Name == "Entities" then
-            if child:FindFirstChild("DroppedGun") then return true end
-        end
-    end
-    return false
-end
-
--- LOOP PRINCIPAL (Roda 60+ vezes por segundo)
-RunService.Heartbeat:Connect(function()
-    if not settings.esp then return end
-
-    local charactersFolder = Workspace:FindFirstChild("Characters")
-    if not charactersFolder then return end
-    
-    local gunOnFloor = isGunOnGround() -- Checa se a arma tá no chão AGORA
-
-    for _, charFolder in pairs(charactersFolder:GetChildren()) do
-        local player = Players:FindFirstChild(charFolder.Name)
-        
-        if player and player ~= LocalPlayer then
+-- 1. SCANNER (0.1s - 10x por segundo)
+task.spawn(function()
+    while true do
+        if settings.esp then
+            local charactersFolder = Workspace:FindFirstChild("Characters")
             
-            -- GATILHO: Tem WorldModel (Arma na Mão)
-            if charFolder:FindFirstChild("WorldModel") then
-                
-                -- REGRA DE OURO: Se tem WorldModel na mão E a arma tá no chão = ASSASSINO
-                -- (Pois o Xerife ou morreu e dropou, ou o Heroi ainda nao pegou)
-                if gunOnFloor then
-                    roleCache[player] = "Murderer"
-                else
-                    -- Se a arma NÃO tá no chão, verificamos o que sumiu das costas
-                    
-                    if not charFolder:FindFirstChild("WornKnife") then
-                        roleCache[player] = "Murderer"
-                    
-                    elseif not charFolder:FindFirstChild("WornGun") then
-                        roleCache[player] = "Sheriff"
-                    
-                    else
-                        -- Se tem WorldModel, arma NÃO tá no chão, e ele ainda tem os WornItems?
-                        -- Isso é bug visual do jogo, mas vamos assumir Xerife (Heroi) para garantir
-                        -- ou manter o estado anterior se já soubermos.
-                        if not roleCache[player] then
-                            roleCache[player] = "Sheriff" 
+            if charactersFolder then
+                for _, charFolder in pairs(charactersFolder:GetChildren()) do
+                    local playerName = charFolder.Name
+                    if playerName ~= LocalPlayer.Name then
+                        
+                        -- Lógica de Ausência (O que sumiu?)
+                        if not charFolder:FindFirstChild("WornKnife") then
+                            roleMemory[playerName] = "Murderer"
                         end
+
+                        if not charFolder:FindFirstChild("WornGun") then
+                            roleMemory[playerName] = "Sheriff"
+                        end
+                        
                     end
                 end
             end
         end
+        task.wait(0.1) -- RÁPIDO
     end
 end)
 
--- LOOP VISUAL (Atualiza o ESP)
-RunService.RenderStepped:Connect(function()
-    if not settings.esp then 
-        -- Limpeza rápida se desligado
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr.Character and plr.Character:FindFirstChild("WerbertHighlight") then
-                plr.Character.WerbertHighlight:Destroy()
-                if plr.Character.Head:FindFirstChild("WerbertTag") then plr.Character.Head.WerbertTag:Destroy() end
+-- 2. VISUAL (0.1s - Acompanha o Scanner)
+task.spawn(function()
+    while true do
+        if settings.esp then
+            local charactersFolder = Workspace:FindFirstChild("Characters")
+
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then
+                    local char = nil
+                    if charactersFolder then char = charactersFolder:FindFirstChild(plr.Name) end
+                    if not char then char = plr.Character end
+
+                    if char and char:FindFirstChild("Head") then
+                        -- Pega o papel da memória
+                        local role = roleMemory[plr.Name]
+                        
+                        local color = Color3.fromRGB(255, 255, 255)
+                        local txt = "Inocente"
+
+                        if role == "Murderer" then
+                            color = Color3.fromRGB(255, 0, 0) -- VERMELHO
+                            txt = "ASSASSINO"
+                        elseif role == "Sheriff" then
+                            color = Color3.fromRGB(0, 100, 255) -- AZUL
+                            txt = "XERIFE"
+                        end
+
+                        -- Highlight
+                        local hl = char:FindFirstChild("WerbertHighlight")
+                        if not hl then 
+                            hl = Instance.new("Highlight", char) 
+                            hl.Name = "WerbertHighlight"
+                            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        end
+                        hl.FillColor = color
+                        hl.OutlineColor = color
+                        
+                        -- Tag
+                        local bg = char.Head:FindFirstChild("WerbertTag")
+                        if not bg then
+                            bg = Instance.new("BillboardGui", char.Head)
+                            bg.Name = "WerbertTag"
+                            bg.Size = UDim2.new(0,100,0,50)
+                            bg.StudsOffset = Vector3.new(0,2,0)
+                            bg.AlwaysOnTop = true
+                            local lbl = Instance.new("TextLabel", bg)
+                            lbl.Size = UDim2.new(1,0,1,0)
+                            lbl.BackgroundTransparency = 1
+                            lbl.Font = Enum.Font.GothamBold
+                            lbl.TextSize = 14
+                            lbl.TextStrokeTransparency = 0
+                        end
+                        bg.TextLabel.Text = plr.Name.."\n["..txt.."]"
+                        bg.TextLabel.TextColor3 = color
+                    end
+                end
+            end
+        else
+            -- Limpeza
+            for _, plr in pairs(Players:GetPlayers()) do
+                local char = plr.Character
+                if char then
+                    if char:FindFirstChild("WerbertHighlight") then char.WerbertHighlight:Destroy() end
+                    if char:FindFirstChild("Head") and char.Head:FindFirstChild("WerbertTag") then char.Head.WerbertTag:Destroy() end
+                end
             end
         end
-        return 
-    end
-
-    local charactersFolder = Workspace:FindFirstChild("Characters")
-
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local char = nil
-            if charactersFolder then char = charactersFolder:FindFirstChild(plr.Name) end
-            if not char then char = plr.Character end
-
-            if char and char:FindFirstChild("Head") then
-                local role = roleCache[plr]
-                
-                local color = Color3.fromRGB(255, 255, 255)
-                local txt = "Inocente"
-
-                if role == "Murderer" then
-                    color = Color3.fromRGB(255, 0, 0)
-                    txt = "ASSASSINO"
-                elseif role == "Sheriff" then
-                    color = Color3.fromRGB(0, 100, 255)
-                    txt = "XERIFE"
-                end
-
-                -- Highlight (Cria se não existir, atualiza se existir)
-                local hl = char:FindFirstChild("WerbertHighlight")
-                if not hl then 
-                    hl = Instance.new("Highlight", char) 
-                    hl.Name = "WerbertHighlight"
-                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                end
-                hl.FillColor = color
-                hl.OutlineColor = color
-                
-                -- Tag (Cria se não existir, atualiza se existir)
-                local bg = char.Head:FindFirstChild("WerbertTag")
-                if not bg then
-                    bg = Instance.new("BillboardGui", char.Head)
-                    bg.Name = "WerbertTag"
-                    bg.Size = UDim2.new(0,100,0,50)
-                    bg.StudsOffset = Vector3.new(0,2,0)
-                    bg.AlwaysOnTop = true
-                    local lbl = Instance.new("TextLabel", bg)
-                    lbl.Size = UDim2.new(1,0,1,0)
-                    lbl.BackgroundTransparency = 1
-                    lbl.Font = Enum.Font.GothamBold
-                    lbl.TextSize = 14
-                    lbl.TextStrokeTransparency = 0
-                end
-                bg.TextLabel.Text = plr.Name.."\n["..txt.."]"
-                bg.TextLabel.TextColor3 = color
-            end
-        end
+        task.wait(0.1) -- AGORA É RÁPIDO TAMBÉM (Era 0.5s)
     end
 end)
 
--- LOOP ARMA (ESP AZUL)
+-- 3. ARMA AZUL (0.2s - Um pouco mais leve pois a arma não corre)
 task.spawn(function()
     while true do
         if settings.gunEsp then
             local targetFolder = nil
-            -- Busca otimizada
             for _, c in pairs(Workspace:GetChildren()) do
                 if c.Name == "Entities" and not c:FindFirstChild("MapModel") then
                     targetFolder = c
@@ -317,8 +289,7 @@ task.spawn(function()
                 end
             end
         else
-            -- Limpeza
-            for _, c in pairs(Workspace:GetChildren()) do
+             for _, c in pairs(Workspace:GetChildren()) do
                 if c.Name == "Entities" then
                     local gun = c:FindFirstChild("DroppedGun")
                     if gun then
@@ -353,15 +324,15 @@ end
 
 -- RESET
 local function resetDetection()
-    roleCache = {} 
-    game.StarterGui:SetCore("SendNotification", {Title = "RODADA NOVA"; Text = "ESP Resetado!"; Duration = 3;})
+    roleMemory = {} 
+    game.StarterGui:SetCore("SendNotification", {Title = "RODADA NOVA"; Text = "Memória Limpa!"; Duration = 3;})
 end
 LocalPlayer.CharacterAdded:Connect(resetDetection)
 Workspace.ChildAdded:Connect(function(c) if c.Name == "Map" then resetDetection() end end)
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Ultra Fast)", 50, function(state) settings.esp = state end)
+createToggle("ESP PLAYERS (Fast Scan)", 50, function(state) settings.esp = state end)
 createToggle("ESP ARMA (Azul)", 100, function(state) settings.gunEsp = state end)
 createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V18", Text="Velocidade MÁXIMA Ativada!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V21", Text="Tudo em 0.1s!", Duration=5})
