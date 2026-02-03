@@ -1,10 +1,10 @@
 --[[ 
-    WERBERT HUB V29 - MEMÓRIA PERMANENTE (SEM PERDÃO)
+    WERBERT HUB V30 - DELAY SEGURO (10 SEGUNDOS)
     Criador: @werbert_ofc
-    Correção Crítica:
-    - Se o assassino guardar a faca (WornKnife voltar), ele CONTINUA VERMELHO.
-    - Uma vez detectado, a marcação fica até a próxima rodada.
-    - Otimizado para "O Assassino Louco X".
+    Alteração:
+    - O script espera 10 segundos após o spawn para fazer a verificação inicial.
+    - Isso garante que todos os itens carregaram, evitando marcar inocentes no início.
+    - Detecção de SAQUE (puxar arma) continua instantânea.
 ]]
 
 local Players = game:GetService("Players")
@@ -26,9 +26,8 @@ local settings = {
     fullbright = false
 }
 
-local roleMemory = {} -- Aqui fica gravado quem é quem
+local roleMemory = {} 
 local monitoredFolders = {} 
-local originalTransparency = {}
 
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
@@ -37,7 +36,7 @@ if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V29_PermMemory"
+ScreenGui.Name = "WerbertHub_V30_10s"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -68,7 +67,7 @@ end
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 260, 0, 320)
 MainFrame.Position = UDim2.new(0.5, -130, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15) -- Estilo mais dark
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -77,8 +76,8 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "ASSASSINO LOUCO X (V29)"
-Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.Text = "ASSASSINO LOUCO X (V30)"
+Title.TextColor3 = Color3.fromRGB(0, 255, 150)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 15
 Title.Parent = MainFrame
@@ -87,7 +86,7 @@ local Credits = Instance.new("TextLabel")
 Credits.Size = UDim2.new(1, 0, 0, 15)
 Credits.Position = UDim2.new(0, 0, 0, 25)
 Credits.BackgroundTransparency = 1
-Credits.Text = "Memória Permanente"
+Credits.Text = "Delay Inicial: 10 Segundos"
 Credits.TextColor3 = Color3.fromRGB(150, 150, 150)
 Credits.Font = Enum.Font.Gotham
 Credits.TextSize = 10
@@ -117,9 +116,9 @@ MiniBtn.Parent = MainFrame
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-FloatIcon.Text = "V29"
-FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+FloatIcon.Text = "V30"
+FloatIcon.TextColor3 = Color3.fromRGB(0, 0, 0)
 FloatIcon.Font = Enum.Font.GothamBlack
 FloatIcon.TextSize = 18
 FloatIcon.Visible = false
@@ -159,7 +158,7 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- LÓGICA V29: MEMÓRIA PERMANENTE
+-- LÓGICA V30: DELAY DE 10 SEGUNDOS + MEMÓRIA
 -- ==============================================================================
 
 local function monitorCharacterFolder(folder)
@@ -168,34 +167,29 @@ local function monitorCharacterFolder(folder)
 
     local playerName = folder.Name
     
-    -- Delay de Segurança para evitar falso positivo no Lobby (3 segundos)
-    -- Mas SEM a função de limpar a memória depois.
+    -- [ATUALIZAÇÃO] Delay de 10 Segundos
     task.spawn(function()
-        task.wait(3)
+        task.wait(10) -- Agora espera 10s para ter certeza que tudo carregou
         if not folder.Parent then return end
         
-        -- Só marca no início se REALMENTE estiver faltando o item
+        -- Checagem Inicial (Após 10s)
         if not folder:FindFirstChild("WornKnife") then 
             roleMemory[playerName] = "Murderer" 
         end
-        -- Xerife precisa de verificação dupla mesmo no início
         if not folder:FindFirstChild("WornGun") and folder:FindFirstChild("WorldModel") then
             roleMemory[playerName] = "Sheriff"
         end
     end)
 
-    -- EVENTO: DETECÇÃO INSTANTÂNEA
+    -- EVENTO: Detecção Instantânea (Isso funciona MESMO durante os 10s de espera)
+    -- Se ele puxar a faca no segundo 5, o script PEGA NA HORA.
     folder.ChildRemoved:Connect(function(child)
         if not settings.esp then return end
         
-        -- Se a WornKnife sair da pasta, É ASSASSINO.
-        -- E não importa se ela voltar depois, a memória já gravou.
         if child.Name == "WornKnife" then
             roleMemory[playerName] = "Murderer"
         
-        -- Se a WornGun sair da pasta
         elseif child.Name == "WornGun" then
-            -- Trava do Xerife (WorldModel)
             task.delay(0.2, function()
                 if folder:FindFirstChild("WorldModel") then
                     roleMemory[playerName] = "Sheriff"
@@ -204,19 +198,15 @@ local function monitorCharacterFolder(folder)
         end
     end)
 
-    -- EVENTO: DETECÇÃO DE HEROI (Inocente que vira Xerife)
+    -- EVENTO: Heroi
     folder.ChildAdded:Connect(function(child)
         if not settings.esp then return end
 
         if child.Name == "WorldModel" then
-            -- Se apareceu arma na mão e a gente ainda não sabe quem é
-            -- E se não for o assassino
             if roleMemory[playerName] ~= "Murderer" then
                 roleMemory[playerName] = "Sheriff"
             end
         end
-        -- NOTA: Eu removi a parte que limpava a memória se WornKnife/Gun voltasse.
-        -- Agora ele ignora isso. Uma vez Vermelho, sempre Vermelho na rodada.
     end)
 end
 
@@ -399,21 +389,21 @@ local function toggleXray(state)
     end
 end
 
--- RESET TOTAL (SÓ AQUI LIMPA A MEMÓRIA)
+-- RESET TOTAL
 local function resetDetection()
-    roleMemory = {} -- Aqui limpa tudo (Nova Rodada)
+    roleMemory = {} 
     monitoredFolders = {} 
-    game.StarterGui:SetCore("SendNotification", {Title = "HUB V29"; Text = "Nova Rodada = Memória Limpa!"; Duration = 3;})
+    game.StarterGui:SetCore("SendNotification", {Title = "HUB V30"; Text = "Aguardando 10s para analisar..."; Duration = 3;})
     startMonitoring() 
 end
 LocalPlayer.CharacterAdded:Connect(resetDetection)
 Workspace.ChildAdded:Connect(function(c) if c.Name == "Map" then resetDetection() end end)
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Memória)", 50, function(state) settings.esp = state end)
+createToggle("ESP PLAYERS (10s Delay)", 50, function(state) settings.esp = state end)
 createToggle("ESP ARMA (Azul)", 95, function(state) settings.gunEsp = state end)
 createToggle("X-RAY (Paredes)", 140, function(state) settings.xray = state; toggleXray(state) end)
 createToggle("SPEED (Correr +)", 185, function(state) settings.speed = state end)
 createToggle("FULLBRIGHT (Luz)", 230, function(state) settings.fullbright = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V29", Text="Memória Permanente Ativa!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V30", Text="Delay 10s Ativado!", Duration=5})
