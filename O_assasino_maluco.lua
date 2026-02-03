@@ -1,6 +1,9 @@
 --[[ 
-    SCRIPT PERSONALIZADO - CRIADOR: @werbert_ofc
-    Funcionalidades: Auto Gun, ESP (Murderer/Sheriff), UI Minimizável Móvel
+    SCRIPT ATUALIZADO V2 - CRIADOR: @werbert_ofc
+    Funcionalidades: 
+    - Auto Gun Inteligente (Filtro de Pasta Entities)
+    - ESP Nome + Chams (Assassino Vermelho)
+    - UI Mobile Otimizada
 ]]
 
 local Players = game:GetService("Players")
@@ -16,16 +19,15 @@ local settings = {
     esp = false
 }
 
--- Limpeza de UI Antiga (para não duplicar se executar 2x)
+-- Limpeza de UI Antiga
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- SISTEMA DE UI (INTERFACE GRÁFICA)
+-- SISTEMA DE UI (Mantido e Otimizado)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertScriptUI"
--- Tenta colocar no CoreGui para segurança, se não der, vai no PlayerGui
+ScreenGui.Name = "WerbertScriptUI_V2"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -33,81 +35,61 @@ else
     getgenv().WerbertUI = ScreenGui
 end
 
--- > FUNÇÃO DE ARRASTAR (Dragify)
+-- Função de Arrastar
 local function makeDraggable(frame)
     local dragging, dragInput, dragStart, startPos
-    
     local function update(input)
         local delta = input.Position - dragStart
         frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-    
     frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
-            
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
         end
     end)
-    
     frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
     end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            update(input)
-        end
-    end)
+    UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- > FRAME PRINCIPAL (Menu Aberto)
+-- UI Principal
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 250, 0, 200) -- Tamanho do menu
-MainFrame.Position = UDim2.new(0.5, -125, 0.5, -100)
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.Size = UDim2.new(0, 250, 0, 220)
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -110)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 
--- Bordas arredondadas
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 10)
 UICorner.Parent = MainFrame
 
--- Título / Créditos
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
 Title.Text = "Criador: @werbert_ofc"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextColor3 = Color3.fromRGB(0, 255, 150)
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
+Title.TextSize = 16
 Title.Parent = MainFrame
 
--- Botão Fechar (X)
+-- Botões de Controle (Fechar/Minimizar)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "X"
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -30, 0, 0)
 CloseBtn.BackgroundTransparency = 1
-CloseBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 18
 CloseBtn.Parent = MainFrame
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
--- Botão Minimizar (-)
 local MiniBtn = Instance.new("TextButton")
 MiniBtn.Text = "-"
 MiniBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -118,175 +100,207 @@ MiniBtn.Font = Enum.Font.GothamBold
 MiniBtn.TextSize = 24
 MiniBtn.Parent = MainFrame
 
--- > BOTÃO FLUTUANTE (Minimizado 40x40)
+-- Ícone Minimizado
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 40, 0, 40)
-FloatIcon.Position = UDim2.new(0.1, 0, 0.1, 0)
+FloatIcon.Position = UDim2.new(0.1, 0, 0.5, 0)
 FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
 FloatIcon.Text = "W"
 FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
 FloatIcon.Font = Enum.Font.GothamBlack
 FloatIcon.TextSize = 20
-FloatIcon.Visible = false -- Começa invisível
+FloatIcon.Visible = false
 FloatIcon.Parent = ScreenGui
+Instance.new("UICorner", FloatIcon).CornerRadius = UDim.new(1, 0)
 
-local FloatCorner = Instance.new("UICorner")
-FloatCorner.CornerRadius = UDim.new(1, 0) -- Redondo
-FloatCorner.Parent = FloatIcon
-
--- Lógica de Minimizar/Restaurar
-MiniBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
-    FloatIcon.Visible = true
-end)
-
-FloatIcon.MouseButton1Click:Connect(function()
-    FloatIcon.Visible = false
-    MainFrame.Visible = true
-end)
+MiniBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; FloatIcon.Visible = true end)
+FloatIcon.MouseButton1Click:Connect(function() FloatIcon.Visible = false; MainFrame.Visible = true end)
 
 makeDraggable(MainFrame)
 makeDraggable(FloatIcon)
 
--- > BOTÕES DE FUNÇÃO
-
--- Função Auxiliar para Criar Toggle
+-- Criador de Botões Toggle
 local function createToggle(text, yPos, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.8, 0, 0, 35)
-    btn.Position = UDim2.new(0.1, 0, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    btn.Text = text .. ": OFF"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.Gotham
+    btn.Size = UDim2.new(0.85, 0, 0, 40)
+    btn.Position = UDim2.new(0.075, 0, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.Text = text .. " [OFF]"
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.GothamSemibold
     btn.TextSize = 14
     btn.Parent = MainFrame
-    
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = btn
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
     local enabled = false
     btn.MouseButton1Click:Connect(function()
         enabled = not enabled
         callback(enabled)
         if enabled then
-            btn.Text = text .. ": ON"
+            btn.Text = text .. " [ON]"
             btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
         else
-            btn.Text = text .. ": OFF"
-            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            btn.Text = text .. " [OFF]"
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
         end
     end)
 end
 
--- Botão 1: Pegar Arma
-createToggle("Auto Pegar Arma", 50, function(state)
-    settings.autoGun = state
-end)
-
--- Botão 2: ESP
-createToggle("ESP (Ver Players)", 100, function(state)
-    settings.esp = state
-end)
+createToggle("AUTO PEGAR ARMA (Rápido)", 50, function(state) settings.autoGun = state end)
+createToggle("ESP (Nome + Papéis)", 100, function(state) settings.esp = state end)
 
 -- ==============================================================================
--- LÓGICA DO SCRIPT
+-- LÓGICA ATUALIZADA - AUTO GUN (Filtro de Pastas)
 -- ==============================================================================
 
--- Função para achar a DroppedGun nas pastas Entities
-local function findDroppedGun()
-    -- Procura em todos os filhos do Workspace chamados "Entities"
-    local possibleFolders = {}
-    
+local function getTargetEntityFolder()
+    -- Procura todas as pastas chamadas "Entities"
+    local entitiesFolders = {}
     for _, child in pairs(Workspace:GetChildren()) do
         if child.Name == "Entities" then
-            table.insert(possibleFolders, child)
+            table.insert(entitiesFolders, child)
         end
     end
 
-    -- Procura a arma dentro dessas pastas encontradas
-    for _, folder in pairs(possibleFolders) do
-        local gun = folder:FindFirstChild("DroppedGun")
-        if gun then return gun end
+    -- Filtra: Queremos a pasta que NÃO tem o MapModel dentro
+    for _, folder in pairs(entitiesFolders) do
+        if not folder:FindFirstChild("MapModel") then
+            return folder -- Achamos a pasta correta (a que spawna a arma)
+        end
     end
-    
     return nil
 end
 
--- Loop de Teleporte (Auto Gun)
+-- Loop ultra-rápido (RenderStepped) para teleporte
 RunService.RenderStepped:Connect(function()
     if settings.autoGun then
-        local gun = findDroppedGun()
-        local character = LocalPlayer.Character
+        local targetFolder = getTargetEntityFolder()
         
-        if gun and character and character:FindFirstChild("HumanoidRootPart") then
-            -- Teleporta para a arma
-            character.HumanoidRootPart.CFrame = gun.CFrame
-        end
-    end
-end)
-
--- Sistema de ESP
-local function clearESP()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Character then
-            local oldHighlight = plr.Character:FindFirstChild("WerbertHighlight")
-            if oldHighlight then oldHighlight:Destroy() end
-        end
-    end
-end
-
--- Loop de ESP (Atualiza a cada 1 segundo para performance)
-task.spawn(function()
-    while true do
-        task.wait(0.5) -- Verifica a cada meio segundo
-        if not settings.esp then
-            clearESP()
-        else
-            for _, plr in pairs(Players:GetPlayers()) do
-                if plr ~= LocalPlayer and plr.Character then
-                    local backpack = plr:FindFirstChild("Backpack")
-                    local character = plr.Character
-                    
-                    -- Remove ESP antigo para atualizar status
-                    local existing = character:FindFirstChild("WerbertHighlight")
-                    if existing then existing:Destroy() end
-
-                    local roleColor = nil
-                    
-                    if backpack then
-                        if backpack:FindFirstChild("Knife") then
-                            -- É o Assassino (Vermelho)
-                            roleColor = Color3.fromRGB(255, 0, 0) 
-                        elseif backpack:FindFirstChild("Gun") or character:FindFirstChild("Gun") then -- Verifica mão e mochila
-                            -- É o Xerife (Azul)
-                            roleColor = Color3.fromRGB(0, 0, 255)
-                        end
-                    end
-                    
-                    -- Se identificou um papel especial, aplica o Highlight
-                    if roleColor then
-                        local hl = Instance.new("Highlight")
-                        hl.Name = "WerbertHighlight"
-                        hl.FillColor = roleColor
-                        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                        hl.FillTransparency = 0.5
-                        hl.OutlineTransparency = 0
-                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Ver através das paredes
-                        hl.Adornee = character
-                        hl.Parent = character
-                    end
-                end
+        if targetFolder then
+            local gun = targetFolder:FindFirstChild("DroppedGun")
+            local char = LocalPlayer.Character
+            
+            -- Só teleporta se a arma existir e o personagem estiver vivo
+            if gun and char and char:FindFirstChild("HumanoidRootPart") then
+                -- Teleporta direto para a CFrame da arma
+                char.HumanoidRootPart.CFrame = gun.CFrame
+                -- A lógica "até sumir" é natural: quando você pega, ela some (vira nil), 
+                -- e o script para de entrar neste 'if gun'
             end
         end
     end
 end)
 
--- Notificação de carregamento
+-- ==============================================================================
+-- LÓGICA ATUALIZADA - ESP (Nomes + Cores de Papel)
+-- ==============================================================================
+
+local function createBillboard(head, nameText, color)
+    if head:FindFirstChild("WerbertTag") then head.WerbertTag:Destroy() end
+    
+    local bg = Instance.new("BillboardGui")
+    bg.Name = "WerbertTag"
+    bg.Adornee = head
+    bg.Size = UDim2.new(0, 100, 0, 50)
+    bg.StudsOffset = Vector3.new(0, 2, 0)
+    bg.AlwaysOnTop = true
+    bg.Parent = head
+
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.Text = nameText
+    txt.TextColor3 = color
+    txt.TextStrokeTransparency = 0
+    txt.Font = Enum.Font.GothamBold
+    txt.TextSize = 14
+    txt.Parent = bg
+end
+
+local function updateESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            local char = plr.Character
+            local backpack = plr:FindFirstChild("Backpack")
+            
+            -- Cores Padrão
+            local roleColor = Color3.fromRGB(255, 255, 255) -- Inocente (Branco)
+            local roleText = "Inocente"
+            
+            -- Verifica Assassino (Vermelho)
+            local hasKnife = false
+            if char:FindFirstChild("Knife") or (backpack and backpack:FindFirstChild("Knife")) then
+                hasKnife = true
+            end
+            
+            -- Verifica Xerife (Azul)
+            local hasGun = false
+            if char:FindFirstChild("Gun") or (backpack and backpack:FindFirstChild("Gun")) then
+                hasGun = true
+            end
+
+            -- Define Prioridade de Cores
+            if hasKnife then
+                roleColor = Color3.fromRGB(255, 0, 0) -- VERMELHO
+                roleText = "ASSASSINO"
+            elseif hasGun then
+                roleColor = Color3.fromRGB(0, 0, 255) -- AZUL
+                roleText = "XERIFE"
+            end
+
+            -- 1. Cria o Highlight (Ver através da parede)
+            if not char:FindFirstChild("WerbertHighlight") then
+                local hl = Instance.new("Highlight")
+                hl.Name = "WerbertHighlight"
+                hl.FillTransparency = 0.5
+                hl.OutlineTransparency = 0
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.Parent = char
+            end
+            
+            -- Atualiza a cor do Highlight existente
+            local hl = char:FindFirstChild("WerbertHighlight")
+            if hl then
+                hl.FillColor = roleColor
+                hl.OutlineColor = roleColor
+            end
+
+            -- 2. Cria o Nome na Cabeça
+            createBillboard(char.Head, plr.Name .. "\n["..roleText.."]", roleColor)
+        end
+    end
+end
+
+-- Remove ESP quando desativado
+local function clearESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr.Character then
+            if plr.Character:FindFirstChild("WerbertHighlight") then
+                plr.Character.WerbertHighlight:Destroy()
+            end
+            if plr.Character:FindFirstChild("Head") and plr.Character.Head:FindFirstChild("WerbertTag") then
+                plr.Character.Head.WerbertTag:Destroy()
+            end
+        end
+    end
+end
+
+-- Loop do ESP
+task.spawn(function()
+    while true do
+        if settings.esp then
+            pcall(updateESP)
+        else
+            clearESP()
+        end
+        task.wait(0.2) -- Atualiza rápido para pegar mudanças de arma
+    end
+end)
+
 game.StarterGui:SetCore("SendNotification", {
-    Title = "Script Carregado";
-    Text = "Criado por @werbert_ofc";
+    Title = "Script V2 Atualizado";
+    Text = "Feito por @werbert_ofc";
     Duration = 5;
 })
-
