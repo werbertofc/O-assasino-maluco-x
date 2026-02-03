@@ -1,7 +1,7 @@
 --[[ 
-    WERBERT HUB V4 - CORRIGIDO
+    WERBERT HUB V5 - VERSÃO CORRIGIDA (SEM SCROLL)
     Criador: @werbert_ofc
-    Funcionalidades: Menu com Scroll, Auto Gun, Auto Farm, ESP Killer, X-Ray
+    Correção: Interface Simplificada para garantir renderização no Mobile
 ]]
 
 local Players = game:GetService("Players")
@@ -12,7 +12,7 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 -- ==============================================================================
--- CONFIGURAÇÕES E VARIÁVEIS
+-- CONFIGURAÇÕES
 -- ==============================================================================
 local settings = {
     autoGun = false,
@@ -24,16 +24,16 @@ local settings = {
 local knownKiller = nil 
 local originalTransparency = {}
 
--- Limpeza de UI Antiga
+-- Limpa UI antiga
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- SISTEMA DE UI ROBUSTO (SEM ABAS BUGADAS)
+-- INTERFACE GRÁFICA (SIMPLIFICADA AO MÁXIMO)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertScriptUI_V4"
--- Proteção básica de detecção e parenting
+ScreenGui.Name = "WerbertScriptUI_V5"
+-- Tenta colocar no CoreGui (mais seguro), se não der, vai no PlayerGui
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -41,7 +41,7 @@ else
     getgenv().WerbertUI = ScreenGui
 end
 
--- > FUNÇÃO DE ARRASTAR
+-- > FUNÇÃO DE ARRASTAR (Mobile Friendly)
 local function makeDraggable(frame)
     local dragging, dragInput, dragStart, startPos
     local function update(input)
@@ -62,91 +62,66 @@ local function makeDraggable(frame)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- > MENU PRINCIPAL
+-- > FUNDO DO MENU
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 260, 0, 320) -- Aumentei a altura
-MainFrame.Position = UDim2.new(0.5, -130, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-MainFrame.BorderSizePixel = 0
+MainFrame.Size = UDim2.new(0, 250, 0, 300) -- Tamanho fixo
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -150) -- Centralizado
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(0, 150, 255)
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 10)
-UICorner.Parent = MainFrame
+-- TÍTULO (FIXO NO TOPO)
+local Title = Instance.new("TextLabel")
+Title.Text = "WERBERT HUB V5"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBlack
+Title.TextSize = 18
+Title.Parent = MainFrame
 
--- Título
-local TitleHeader = Instance.new("Frame")
-TitleHeader.Size = UDim2.new(1, 0, 0, 40)
-TitleHeader.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-TitleHeader.BorderSizePixel = 0
-TitleHeader.Parent = MainFrame
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 10)
-TitleCorner.Parent = TitleHeader
-
--- Correção visual para o cabeçalho não ficar redondo embaixo
-local HeaderFix = Instance.new("Frame")
-HeaderFix.Size = UDim2.new(1, 0, 0, 10)
-HeaderFix.Position = UDim2.new(0, 0, 1, -10)
-HeaderFix.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-HeaderFix.BorderSizePixel = 0
-HeaderFix.Parent = TitleHeader
-
-local TitleText = Instance.new("TextLabel")
-TitleText.Text = "WERBERT HUB V4"
-TitleText.Size = UDim2.new(1, -50, 1, 0)
-TitleText.Position = UDim2.new(0, 10, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.TextColor3 = Color3.fromRGB(0, 255, 150)
-TitleText.Font = Enum.Font.GothamBlack
-TitleText.TextSize = 16
-TitleText.XAlignment = Enum.TextXAlignment.Left
-TitleText.Parent = TitleHeader
-
--- Botões de Janela
+-- BOTÃO FECHAR (X)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "X"
-CloseBtn.Size = UDim2.new(0, 35, 1, 0)
-CloseBtn.Position = UDim2.new(1, -35, 0, 0)
+CloseBtn.Size = UDim2.new(0, 40, 0, 40)
+CloseBtn.Position = UDim2.new(1, -40, 0, 0)
 CloseBtn.BackgroundTransparency = 1
-CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 18
-CloseBtn.Parent = TitleHeader
+CloseBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
+CloseBtn.Font = Enum.Font.GothamBlack
+CloseBtn.TextSize = 20
+CloseBtn.Parent = MainFrame
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
+-- BOTÃO MINIMIZAR (-)
 local MiniBtn = Instance.new("TextButton")
-MiniBtn.Text = "-"
-MiniBtn.Size = UDim2.new(0, 35, 1, 0)
-MiniBtn.Position = UDim2.new(1, -70, 0, 0)
+MiniBtn.Text = "_"
+MiniBtn.Size = UDim2.new(0, 40, 0, 40)
+MiniBtn.Position = UDim2.new(1, -80, 0, 0)
 MiniBtn.BackgroundTransparency = 1
-MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 100)
-MiniBtn.Font = Enum.Font.GothamBold
-MiniBtn.TextSize = 24
-MiniBtn.Parent = TitleHeader
+MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MiniBtn.Font = Enum.Font.GothamBlack
+MiniBtn.TextSize = 20
+MiniBtn.Parent = MainFrame
 
--- > CONTAINER DE SCROLL (ONDE FICAM OS BOTÕES)
-local ScrollContainer = Instance.new("ScrollingFrame")
-ScrollContainer.Size = UDim2.new(1, -20, 1, -50)
-ScrollContainer.Position = UDim2.new(0, 10, 0, 45)
-ScrollContainer.BackgroundTransparency = 1
-ScrollContainer.ScrollBarThickness = 4
-ScrollContainer.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 150)
-ScrollContainer.CanvasSize = UDim2.new(0, 0, 0, 0) -- Ajuste automático
-ScrollContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
-ScrollContainer.Parent = MainFrame
+-- > ÁREA DOS BOTÕES (CONTAINER FIXO)
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(1, -20, 1, -50) -- Ocupa o resto do menu
+Container.Position = UDim2.new(0, 10, 0, 50) -- Abaixo do título
+Container.BackgroundTransparency = 1
+Container.Parent = MainFrame
 
 local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.Padding = UDim.new(0, 8)
-UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListLayout.Padding = UDim.new(0, 10) -- Espaço entre botões
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.Parent = ScrollContainer
+UIListLayout.Parent = Container
 
--- > ÍCONE MINIMIZADO
+-- > ÍCONE MINIMIZADO (FLUTUANTE)
 local FloatIcon = Instance.new("TextButton")
-FloatIcon.Size = UDim2.new(0, 45, 0, 45)
+FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.3, 0)
 FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
 FloatIcon.Text = "W"
@@ -155,16 +130,16 @@ FloatIcon.Font = Enum.Font.GothamBlack
 FloatIcon.TextSize = 24
 FloatIcon.Visible = false
 FloatIcon.Parent = ScreenGui
-local FloatCorner = Instance.new("UICorner")
-FloatCorner.CornerRadius = UDim.new(1, 0)
-FloatCorner.Parent = FloatIcon
+-- Borda arredondada no ícone (simples)
+local FloatRound = Instance.new("UICorner")
+FloatRound.CornerRadius = UDim.new(1,0) 
+FloatRound.Parent = FloatIcon
 
--- Lógica Minimizar/Maximizar
+-- Lógica Minimizar/Restaurar
 MiniBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     FloatIcon.Visible = true
 end)
-
 FloatIcon.MouseButton1Click:Connect(function()
     FloatIcon.Visible = false
     MainFrame.Visible = true
@@ -173,84 +148,46 @@ end)
 makeDraggable(MainFrame)
 makeDraggable(FloatIcon)
 
--- > FUNÇÃO PARA CRIAR BOTÕES
-local function createButton(text, description, callback)
-    local btnFrame = Instance.new("Frame")
-    btnFrame.Size = UDim2.new(1, -10, 0, 50)
-    btnFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    btnFrame.Parent = ScrollContainer
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 8)
-    btnCorner.Parent = btnFrame
-    
+-- > FUNÇÃO CRIAR BOTÃO SIMPLES
+local function createButton(text, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 1, 0)
-    btn.BackgroundTransparency = 1
-    btn.Text = ""
-    btn.Parent = btnFrame
+    btn.Size = UDim2.new(1, 0, 0, 45) -- Altura fixa
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45) -- Cinza escuro
+    btn.Text = text .. " [OFF]"
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.Parent = Container
     
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Text = text
-    titleLabel.Size = UDim2.new(1, -50, 0, 25)
-    titleLabel.Position = UDim2.new(0, 10, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 14
-    titleLabel.XAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = btnFrame
-    
-    local descLabel = Instance.new("TextLabel")
-    descLabel.Text = description
-    descLabel.Size = UDim2.new(1, -50, 0, 20)
-    descLabel.Position = UDim2.new(0, 10, 0, 22)
-    descLabel.BackgroundTransparency = 1
-    descLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-    descLabel.Font = Enum.Font.Gotham
-    descLabel.TextSize = 11
-    descLabel.XAlignment = Enum.TextXAlignment.Left
-    descLabel.Parent = btnFrame
-    
-    local statusIndicator = Instance.new("Frame")
-    statusIndicator.Size = UDim2.new(0, 10, 0, 10)
-    statusIndicator.Position = UDim2.new(1, -20, 0.5, -5)
-    statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 50, 50) -- Vermelho (OFF)
-    statusIndicator.Parent = btnFrame
-    local statusCorner = Instance.new("UICorner")
-    statusCorner.CornerRadius = UDim.new(1, 0)
-    statusCorner.Parent = statusIndicator
+    -- Bordinha arredondada
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
     
     local enabled = false
     btn.MouseButton1Click:Connect(function()
         enabled = not enabled
         callback(enabled)
         if enabled then
-            statusIndicator.BackgroundColor3 = Color3.fromRGB(50, 255, 50) -- Verde (ON)
-            titleLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+            btn.Text = text .. " [ON]"
+            btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100) -- Verde
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
         else
-            statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 50, 50) -- Vermelho (OFF)
-            titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.Text = text .. " [OFF]"
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45) -- Cinza
+            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
         end
     end)
 end
 
 -- ==============================================================================
--- CRIANDO OS BOTÕES NO MENU
+-- ADICIONANDO OS BOTÕES (AGORA ELES VÃO APARECER!)
 -- ==============================================================================
 
-createButton("AUTO GUN", "Teleporta para arma ao cair", function(state) 
-    settings.autoGun = state 
-end)
-
-createButton("AUTO FARM MOEDAS", "Coleta moedas pelo mapa", function(state) 
-    settings.autoFarm = state 
-end)
-
-createButton("ESP MASTER", "Wallhack + Nomes + Assassino", function(state) 
-    settings.esp = state 
-end)
-
-createButton("X-RAY", "Deixa paredes invisíveis", function(state) 
+createButton("AUTO GUN (Pegar Arma)", function(state) settings.autoGun = state end)
+createButton("AUTO FARM (Moedas)", function(state) settings.autoFarm = state end)
+createButton("ESP (Ver Pelas Paredes)", function(state) settings.esp = state end)
+createButton("X-RAY (Paredes Invisíveis)", function(state) 
     settings.xray = state
     if state then
         for _, part in pairs(Workspace:GetDescendants()) do
@@ -269,84 +206,76 @@ createButton("X-RAY", "Deixa paredes invisíveis", function(state)
     end
 end)
 
--- Créditos no final do scroll
-local Credits = Instance.new("TextLabel")
-Credits.Text = "Criado por @werbert_ofc"
-Credits.Size = UDim2.new(1, 0, 0, 30)
-Credits.BackgroundTransparency = 1
-Credits.TextColor3 = Color3.fromRGB(100, 100, 100)
-Credits.Font = Enum.Font.Gotham
-Credits.TextSize = 12
-Credits.Parent = ScrollContainer
+-- CRÉDITOS NO FINAL
+local Cred = Instance.new("TextLabel")
+Cred.Text = "Criado por @werbert_ofc"
+Cred.Size = UDim2.new(1,0,0,20)
+Cred.BackgroundTransparency = 1
+Cred.TextColor3 = Color3.fromRGB(150,150,150)
+Cred.Font = Enum.Font.Gotham
+Cred.TextSize = 12
+Cred.Parent = Container
 
 -- ==============================================================================
--- LÓGICA DO JOGO
+-- LÓGICA DO SCRIPT (MANUTENÇÃO DAS FUNÇÕES)
 -- ==============================================================================
 
--- 1. DETECTOR DE ASSASSINO (POR MORTE)
-local function detectKiller()
-    local function onCharacterAdded(char)
-        local humanoid = char:WaitForChild("Humanoid", 10)
-        if humanoid then
-            humanoid.Died:Connect(function()
-                if not settings.esp then return end
-                local deadPos = char.HumanoidRootPart.Position
-                local closestPlayer = nil
-                local shortestDistance = 25 
-
-                for _, p in pairs(Players:GetPlayers()) do
-                    if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
-                        local dist = (p.Character.HumanoidRootPart.Position - deadPos).Magnitude
-                        if dist < shortestDistance then
-                            closestPlayer = p
-                            shortestDistance = dist
+-- 1. DETETOR DE ASSASSINO
+local function setupKillerDetection()
+    local function monitor(player)
+        player.CharacterAdded:Connect(function(char)
+            local hum = char:WaitForChild("Humanoid", 10)
+            if hum then
+                hum.Died:Connect(function()
+                    if not settings.esp then return end
+                    local deadPos = char.HumanoidRootPart.Position
+                    local suspect = nil
+                    local minDist = 25
+                    
+                    for _, p in pairs(Players:GetPlayers()) do
+                        if p ~= LocalPlayer and p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.Humanoid.Health > 0 then
+                            local dist = (p.Character.HumanoidRootPart.Position - deadPos).Magnitude
+                            if dist < minDist then
+                                minDist = dist
+                                suspect = p
+                            end
                         end
                     end
-                end
-                if closestPlayer then 
-                    knownKiller = closestPlayer 
-                    game.StarterGui:SetCore("SendNotification", {Title="SUSPEITO DETECTADO"; Text=closestPlayer.Name; Duration=3;})
-                end
-            end)
-        end
+                    if suspect then 
+                        knownKiller = suspect 
+                        game.StarterGui:SetCore("SendNotification", {Title="SUSPEITO!", Text=suspect.Name, Duration=3})
+                    end
+                end)
+            end
+        end)
     end
-
-    for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then onCharacterAdded(p.Character) end
-        p.CharacterAdded:Connect(onCharacterAdded)
-    end
-    Players.PlayerAdded:Connect(function(p) p.CharacterAdded:Connect(onCharacterAdded) end)
+    for _, p in pairs(Players:GetPlayers()) do monitor(p) end
+    Players.PlayerAdded:Connect(monitor)
 end
-detectKiller()
+setupKillerDetection()
 
 -- 2. LOOPS (AUTO GUN + FARM)
 RunService.RenderStepped:Connect(function()
-    -- Auto Gun
     if settings.autoGun then
-        local targetFolder = nil
-        for _, child in pairs(Workspace:GetChildren()) do
-            if child.Name == "Entities" and not child:FindFirstChild("MapModel") then
-                targetFolder = child
-                break
-            end
+        local folder = nil
+        for _, c in pairs(Workspace:GetChildren()) do
+            if c.Name == "Entities" and not c:FindFirstChild("MapModel") then folder = c break end
         end
-        
-        if targetFolder then
-            local gun = targetFolder:FindFirstChild("DroppedGun")
+        if folder then
+            local gun = folder:FindFirstChild("DroppedGun")
             if gun and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 LocalPlayer.Character.HumanoidRootPart.CFrame = gun.CFrame
             end
         end
     end
     
-    -- Auto Farm (Lento para evitar kick)
     if settings.autoFarm then
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
             for _, v in pairs(Workspace:GetDescendants()) do
                 if (v.Name == "Coin_Server" or v.Name == "Coin") and v:IsA("BasePart") and v.Transparency == 0 then
                     char.HumanoidRootPart.CFrame = v.CFrame
-                    break -- Pega 1 por frame
+                    break
                 end
             end
         end
@@ -360,60 +289,49 @@ task.spawn(function()
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
                     local char = plr.Character
-                    local roleColor = Color3.fromRGB(255, 255, 255)
-                    local roleText = "Inocente"
+                    local color = Color3.fromRGB(255,255,255)
+                    local txt = "Inocente"
                     
                     if plr == knownKiller then
-                        roleColor = Color3.fromRGB(255, 0, 0)
-                        roleText = "ASSASSINO (SUSPEITO)"
+                        color = Color3.fromRGB(255,0,0)
+                        txt = "SUSPEITO"
                     elseif char:FindFirstChild("Gun") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Gun")) then
-                        roleColor = Color3.fromRGB(0, 0, 255)
-                        roleText = "XERIFE"
-                    elseif char:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
-                         -- Caso raro de conseguir ver a faca
-                        roleColor = Color3.fromRGB(255, 0, 0)
-                        roleText = "ASSASSINO"
+                        color = Color3.fromRGB(0,0,255)
+                        txt = "XERIFE"
+                    elseif char:FindFirstChild("Knife") then
+                        color = Color3.fromRGB(255,0,0)
+                        txt = "ASSASSINO"
                         knownKiller = plr
                     end
-
-                    -- Highlight
-                    local hl = char:FindFirstChild("WerbertHighlight")
-                    if not hl then
-                        hl = Instance.new("Highlight")
-                        hl.Name = "WerbertHighlight"
-                        hl.FillTransparency = 0.5
-                        hl.OutlineTransparency = 0
-                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        hl.Parent = char
-                    end
-                    hl.FillColor = roleColor
-                    hl.OutlineColor = roleColor
                     
-                    -- Texto
+                    local hl = char:FindFirstChild("WerbertHighlight")
+                    if not hl then 
+                        hl = Instance.new("Highlight", char) 
+                        hl.Name = "WerbertHighlight"
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    end
+                    hl.FillColor = color
+                    hl.OutlineColor = color
+                    
                     local bg = char.Head:FindFirstChild("WerbertTag")
                     if not bg then
-                        bg = Instance.new("BillboardGui")
+                        bg = Instance.new("BillboardGui", char.Head)
                         bg.Name = "WerbertTag"
-                        bg.Size = UDim2.new(0, 100, 0, 50)
-                        bg.StudsOffset = Vector3.new(0, 2, 0)
+                        bg.Size = UDim2.new(0,100,0,50)
+                        bg.StudsOffset = Vector3.new(0,2,0)
                         bg.AlwaysOnTop = true
-                        bg.Parent = char.Head
-                        
-                        local txt = Instance.new("TextLabel")
-                        txt.Name = "Label"
-                        txt.Size = UDim2.new(1, 0, 1, 0)
-                        txt.BackgroundTransparency = 1
-                        txt.TextStrokeTransparency = 0
-                        txt.Font = Enum.Font.GothamBold
-                        txt.TextSize = 14
-                        txt.Parent = bg
+                        local lbl = Instance.new("TextLabel", bg)
+                        lbl.Size = UDim2.new(1,0,1,0)
+                        lbl.BackgroundTransparency = 1
+                        lbl.Font = Enum.Font.GothamBold
+                        lbl.TextSize = 14
                     end
-                    bg.Label.Text = plr.Name .. "\n["..roleText.."]"
-                    bg.Label.TextColor3 = roleColor
+                    bg.TextLabel.Text = plr.Name.."\n["..txt.."]"
+                    bg.TextLabel.TextColor3 = color
                 end
             end
         else
-            -- Limpar ESP se desligado
+            -- Limpeza
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr.Character then
                     if plr.Character:FindFirstChild("WerbertHighlight") then plr.Character.WerbertHighlight:Destroy() end
@@ -425,7 +343,4 @@ task.spawn(function()
     end
 end)
 
--- Limpar conhecido ao resetar mapa
-Workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Map" then knownKiller = nil end
-end)
+game.StarterGui:SetCore("SendNotification", {Title="Hub V5 Ativado", Text="Menu Corrigido!", Duration=5})
