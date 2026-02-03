@@ -1,11 +1,12 @@
 --[[ 
-    WERBERT HUB V45 - MEMÓRIA INFINITA (FIX FINAL)
+    WERBERT HUB V46 - RESET NO START
     Criador: @werbert_ofc
     
-    Correção:
-    - Removido o sistema de "Auto-Correção" que limpava a memória ao guardar a arma.
-    - Uma vez marcado (Assassino ou Xerife), o status é ETERNO até o reset do Lobby.
-    - Mantém o Delay de 0.3s para evitar falsos positivos por lag.
+    O QUE MUDOU:
+    - Assim que a partida começa (sai do Lobby), o script RESETA a memória.
+    - Durante a contagem de 20s, todos aparecem como INOCENTE.
+    - Se alguém puxar a arma durante os 20s, é marcado NA HORA.
+    - Se ninguém puxar, a investigação completa começa após os 20s.
 ]]
 
 local Players = game:GetService("Players")
@@ -39,7 +40,7 @@ if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V45_InfiniteMem"
+ScreenGui.Name = "WerbertHub_V46_ResetStart"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -70,7 +71,7 @@ end
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 260, 0, 360)
 MainFrame.Position = UDim2.new(0.5, -130, 0.5, -180)
-MainFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 8)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -79,8 +80,8 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "ASSASSINO LOUCO X (V45)"
-Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.Text = "ASSASSINO LOUCO X (V46)"
+Title.TextColor3 = Color3.fromRGB(255, 0, 255)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 15
 Title.Parent = MainFrame
@@ -119,8 +120,8 @@ MiniBtn.Parent = MainFrame
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-FloatIcon.Text = "V45"
+FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 255)
+FloatIcon.Text = "V46"
 FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
 FloatIcon.Font = Enum.Font.GothamBlack
 FloatIcon.TextSize = 18
@@ -161,7 +162,7 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- 1. SISTEMA DE TIMER / LOBBY (RESET LÓGICO)
+-- 1. SISTEMA DE TIMER / LOBBY (RESET DUPLO)
 -- ==============================================================================
 
 local function checkLocation()
@@ -178,17 +179,26 @@ local function checkLocation()
             local distance = (root.Position - referencePart.Position).Magnitude
             
             if distance < 300 then 
+                -- ESTOU NO LOBBY
                 if not isInLobby then
                     isInLobby = true
                     scannerActive = false
-                    roleMemory = {} -- RESET DA MEMÓRIA (ÚNICO MOMENTO QUE LIMPA)
-                    StatusLabel.Text = "STATUS: LOBBY (Limpo)"
+                    roleMemory = {} 
+                    StatusLabel.Text = "STATUS: LOBBY (Pausado)"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-                    game.StarterGui:SetCore("SendNotification", {Title="Hub V45", Text="Memória Limpa!", Duration=3})
                 end
             else
+                -- SAIU DO LOBBY (INÍCIO DA PARTIDA)
                 if isInLobby then
                     isInLobby = false
+                    
+                    -- [RESET NO START] AQUI ESTÁ O QUE VOCÊ PEDIU
+                    -- Limpa a memória no exato momento que começa a contar os 20s
+                    roleMemory = {} 
+                    scannerActive = false
+                    
+                    game.StarterGui:SetCore("SendNotification", {Title="Hub V46", Text="PARTIDA INICIADA - RESET!", Duration=3})
+                    
                     task.spawn(function()
                         for i = 20, 1, -1 do
                             if isInLobby then return end
@@ -200,7 +210,7 @@ local function checkLocation()
                             scannerActive = true
                             StatusLabel.Text = "STATUS: DETECÇÃO ATIVA"
                             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                            game.StarterGui:SetCore("SendNotification", {Title="Hub V45", Text="Scanner Ligado!", Duration=3})
+                            game.StarterGui:SetCore("SendNotification", {Title="Hub V46", Text="Scanner Liberado!", Duration=3})
                         end
                     end)
                 end
@@ -224,40 +234,26 @@ function analyzePlayer(folder)
     local playerName = folder.Name
     if playerName == LocalPlayer.Name then return end
 
-    -- [TRAVA DE SEGURANÇA MÁXIMA]
-    -- Se ele já está marcado como Assassino, NÃO FAÇA NADA.
-    -- Isso impede que ele volte a ser inocente, não importa o que aconteça.
     if roleMemory[playerName] == "Murderer" then return end
-    
-    -- Se ele já está marcado como Xerife, só permitimos atualizar se ele virar Assassino.
-    -- (Caso tenhamos marcado errado antes).
-    -- Mas nunca deixamos ele virar inocente.
 
-    -- [1] DETECÇÃO VISUAL (WORLDMODEL) - Prioridade
+    -- [1] DETECÇÃO VISUAL (WORLDMODEL) - Prioridade Máxima
+    -- Funciona mesmo durante os 20s
     if folder:FindFirstChild("WorldModel") then
-        
-        -- Delay para evitar lag (0.3s)
         task.delay(0.3, function()
-            -- Confere se a arma ainda tá lá
             if not folder:FindFirstChild("WorldModel") then return end
             
-            -- Se tem arma na mão E tem WornGun nas costas = ASSASSINO
             if folder:FindFirstChild("WornGun") then
                 roleMemory[playerName] = "Murderer"
                 return
             end
 
-            -- Se tem arma na mão E tem WornKnife nas costas = XERIFE
             if folder:FindFirstChild("WornKnife") then
-                -- Só marca se a gente ainda não sabe que é assassino
                 if roleMemory[playerName] ~= "Murderer" then
                     roleMemory[playerName] = "Sheriff"
                 end
                 return
             end
             
-            -- Se não tem NADA nas costas e tem arma?
-            -- Assumimos Assassino (Faca buga mais fácil que arma)
             if not folder:FindFirstChild("WornGun") and not folder:FindFirstChild("WornKnife") then
                  if roleMemory[playerName] ~= "Sheriff" then
                      roleMemory[playerName] = "Murderer"
@@ -268,12 +264,10 @@ function analyzePlayer(folder)
 
     -- [2] DETECÇÃO PASSIVA (SÓ DEPOIS DE 20s)
     if scannerActive then
-        -- Falta Faca? = Assassino
         if not folder:FindFirstChild("WornKnife") then
             roleMemory[playerName] = "Murderer"
         end
         
-        -- Falta Arma? = Xerife
         if not folder:FindFirstChild("WornGun") then
             if roleMemory[playerName] ~= "Murderer" then
                 roleMemory[playerName] = "Sheriff"
@@ -491,10 +485,10 @@ local function toggleXray(state)
 end
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Memória)", 60, function(state) settings.esp = state end)
+createToggle("ESP PLAYERS (Reset Start)", 60, function(state) settings.esp = state end)
 createToggle("ESP ARMA (Azul)", 105, function(state) settings.gunEsp = state end)
 createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
 createToggle("SPEED (Correr +)", 195, function(state) settings.speed = state end)
 createToggle("FULLBRIGHT (Luz)", 240, function(state) settings.fullbright = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V45", Text="Memória Infinita Ativa!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V46", Text="Início de Partida = Reset", Duration=5})
