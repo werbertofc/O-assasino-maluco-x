@@ -1,9 +1,10 @@
 --[[ 
-    WERBERT HUB V27 - CORREÇÃO DE FALSO POSITIVO
+    WERBERT HUB V29 - MEMÓRIA PERMANENTE (SEM PERDÃO)
     Criador: @werbert_ofc
-    Correção:
-    - Assassino: Detecta pelo sumiço da WornKnife (Mantido).
-    - Xerife: Só marca se a WornGun sumir E o WorldModel estiver presente (Trava de Segurança).
+    Correção Crítica:
+    - Se o assassino guardar a faca (WornKnife voltar), ele CONTINUA VERMELHO.
+    - Uma vez detectado, a marcação fica até a próxima rodada.
+    - Otimizado para "O Assassino Louco X".
 ]]
 
 local Players = game:GetService("Players")
@@ -25,8 +26,9 @@ local settings = {
     fullbright = false
 }
 
-local roleMemory = {} 
+local roleMemory = {} -- Aqui fica gravado quem é quem
 local monitoredFolders = {} 
+local originalTransparency = {}
 
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
@@ -35,7 +37,7 @@ if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V27_Fix"
+ScreenGui.Name = "WerbertHub_V29_PermMemory"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -66,7 +68,7 @@ end
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 260, 0, 320)
 MainFrame.Position = UDim2.new(0.5, -130, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15) -- Estilo mais dark
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -75,8 +77,8 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "ASSASSINO LOUCO X (V27)"
-Title.TextColor3 = Color3.fromRGB(0, 255, 150)
+Title.Text = "ASSASSINO LOUCO X (V29)"
+Title.TextColor3 = Color3.fromRGB(255, 0, 0)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 15
 Title.Parent = MainFrame
@@ -85,7 +87,7 @@ local Credits = Instance.new("TextLabel")
 Credits.Size = UDim2.new(1, 0, 0, 15)
 Credits.Position = UDim2.new(0, 0, 0, 25)
 Credits.BackgroundTransparency = 1
-Credits.Text = "Correção de Xerife"
+Credits.Text = "Memória Permanente"
 Credits.TextColor3 = Color3.fromRGB(150, 150, 150)
 Credits.Font = Enum.Font.Gotham
 Credits.TextSize = 10
@@ -115,9 +117,9 @@ MiniBtn.Parent = MainFrame
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
-FloatIcon.Text = "V27"
-FloatIcon.TextColor3 = Color3.fromRGB(0, 0, 0)
+FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+FloatIcon.Text = "V29"
+FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
 FloatIcon.Font = Enum.Font.GothamBlack
 FloatIcon.TextSize = 18
 FloatIcon.Visible = false
@@ -157,7 +159,7 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- LÓGICA V27: CORREÇÃO DE DUPLA VERIFICAÇÃO
+-- LÓGICA V29: MEMÓRIA PERMANENTE
 -- ==============================================================================
 
 local function monitorCharacterFolder(folder)
@@ -166,44 +168,55 @@ local function monitorCharacterFolder(folder)
 
     local playerName = folder.Name
     
-    -- Checagem Inicial (Só para Assassino, Xerife vamos esperar confirmação)
-    if not folder:FindFirstChild("WornKnife") then 
-        roleMemory[playerName] = "Murderer" 
-    end
+    -- Delay de Segurança para evitar falso positivo no Lobby (3 segundos)
+    -- Mas SEM a função de limpar a memória depois.
+    task.spawn(function()
+        task.wait(3)
+        if not folder.Parent then return end
+        
+        -- Só marca no início se REALMENTE estiver faltando o item
+        if not folder:FindFirstChild("WornKnife") then 
+            roleMemory[playerName] = "Murderer" 
+        end
+        -- Xerife precisa de verificação dupla mesmo no início
+        if not folder:FindFirstChild("WornGun") and folder:FindFirstChild("WorldModel") then
+            roleMemory[playerName] = "Sheriff"
+        end
+    end)
 
-    -- EVENTO: Dispara quando um item SOME da pasta
+    -- EVENTO: DETECÇÃO INSTANTÂNEA
     folder.ChildRemoved:Connect(function(child)
         if not settings.esp then return end
         
-        -- LÓGICA DO ASSASSINO (Mantida - Funciona bem)
+        -- Se a WornKnife sair da pasta, É ASSASSINO.
+        -- E não importa se ela voltar depois, a memória já gravou.
         if child.Name == "WornKnife" then
             roleMemory[playerName] = "Murderer"
         
-        -- LÓGICA DO XERIFE (Corrigida - Com Trava de Segurança)
+        -- Se a WornGun sair da pasta
         elseif child.Name == "WornGun" then
-            -- NÃO marca na hora. Espera um pouquinho para ver se a arma aparece na mão.
+            -- Trava do Xerife (WorldModel)
             task.delay(0.2, function()
-                -- Só é Xerife se a arma sumiu das costas E apareceu na mão (WorldModel)
                 if folder:FindFirstChild("WorldModel") then
                     roleMemory[playerName] = "Sheriff"
-                else
-                    -- Se a arma sumiu das costas mas NÃO tem nada na mão,
-                    -- é bug do jogo ou lag, então ignoramos (continua Inocente).
                 end
             end)
         end
     end)
 
-    -- EVENTO: Dispara quando um item ENTRA na pasta (Para pegar o Heroi)
+    -- EVENTO: DETECÇÃO DE HEROI (Inocente que vira Xerife)
     folder.ChildAdded:Connect(function(child)
         if not settings.esp then return end
 
-        -- Se apareceu um WorldModel na mão de alguém que não é assassino
         if child.Name == "WorldModel" then
+            -- Se apareceu arma na mão e a gente ainda não sabe quem é
+            -- E se não for o assassino
             if roleMemory[playerName] ~= "Murderer" then
                 roleMemory[playerName] = "Sheriff"
             end
         end
+        -- NOTA: Eu removi a parte que limpava a memória se WornKnife/Gun voltasse.
+        -- Agora ele ignora isso. Uma vez Vermelho, sempre Vermelho na rodada.
     end)
 end
 
@@ -216,16 +229,6 @@ local function startMonitoring()
         charactersFolder.ChildAdded:Connect(monitorCharacterFolder)
     end
 end
-
-startMonitoring()
-
-Workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Characters" then
-        task.wait(1)
-        startMonitoring()
-    end
-end)
-
 
 -- ==============================================================================
 -- VISUAL (ESP)
@@ -396,21 +399,21 @@ local function toggleXray(state)
     end
 end
 
--- RESET TOTAL
+-- RESET TOTAL (SÓ AQUI LIMPA A MEMÓRIA)
 local function resetDetection()
-    roleMemory = {} 
+    roleMemory = {} -- Aqui limpa tudo (Nova Rodada)
     monitoredFolders = {} 
-    game.StarterGui:SetCore("SendNotification", {Title = "HUB V27"; Text = "Resetado & Corrigido!"; Duration = 3;})
+    game.StarterGui:SetCore("SendNotification", {Title = "HUB V29"; Text = "Nova Rodada = Memória Limpa!"; Duration = 3;})
     startMonitoring() 
 end
 LocalPlayer.CharacterAdded:Connect(resetDetection)
 Workspace.ChildAdded:Connect(function(c) if c.Name == "Map" then resetDetection() end end)
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Correção)", 50, function(state) settings.esp = state end)
+createToggle("ESP PLAYERS (Memória)", 50, function(state) settings.esp = state end)
 createToggle("ESP ARMA (Azul)", 95, function(state) settings.gunEsp = state end)
 createToggle("X-RAY (Paredes)", 140, function(state) settings.xray = state; toggleXray(state) end)
 createToggle("SPEED (Correr +)", 185, function(state) settings.speed = state end)
 createToggle("FULLBRIGHT (Luz)", 230, function(state) settings.fullbright = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V27", Text="Falso-Positivo Corrigido!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V29", Text="Memória Permanente Ativa!", Duration=5})
