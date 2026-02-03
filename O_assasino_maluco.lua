@@ -1,12 +1,19 @@
 --[[ 
-    WERBERT HUB V21 - VELOCIDADE MÁXIMA
+    SCRIPT: O ASSASSINO LOUCO X (HUB V25 - ESTÁVEL)
     Criador: @werbert_ofc
-    Melhoria: Detecção e Visual rodando a 0.1s (Instantâneo)
+    
+    Funcionalidades:
+    - Detecção Inteligente (WornItems na pasta Characters)
+    - Gun ESP (Arma Azul Neon)
+    - Speed Legit (24)
+    - Fullbright (Luz Infinita)
+    - ESP Players (Wallhack)
 ]]
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
@@ -16,7 +23,9 @@ local LocalPlayer = Players.LocalPlayer
 local settings = {
     esp = false,
     gunEsp = false,
-    xray = false
+    xray = false,
+    speed = false,
+    fullbright = false
 }
 
 local roleMemory = {} 
@@ -25,11 +34,11 @@ local originalTransparency = {}
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- MENU VISUAL (V1)
+-- MENU VISUAL (INTERFACE)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V21"
+ScreenGui.Name = "AssassinoLoucoX_Hub_V25"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -58,29 +67,40 @@ local function makeDraggable(frame)
 end
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 250, 0, 240)
-MainFrame.Position = UDim2.new(0.5, -125, 0.5, -120)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.Size = UDim2.new(0, 260, 0, 320) -- Tamanho ajustado
+MainFrame.Position = UDim2.new(0.5, -130, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
+-- Título
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "Criador: @werbert_ofc"
-Title.TextColor3 = Color3.fromRGB(0, 255, 150)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
+Title.Text = "O ASSASSINO LOUCO X"
+Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.Font = Enum.Font.GothamBlack
+Title.TextSize = 16
 Title.Parent = MainFrame
+
+local Credits = Instance.new("TextLabel")
+Credits.Size = UDim2.new(1, 0, 0, 15)
+Credits.Position = UDim2.new(0, 0, 0, 25)
+Credits.BackgroundTransparency = 1
+Credits.Text = "Criado por @werbert_ofc"
+Credits.TextColor3 = Color3.fromRGB(150, 150, 150)
+Credits.Font = Enum.Font.Gotham
+Credits.TextSize = 10
+Credits.Parent = MainFrame
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "X"
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+CloseBtn.Position = UDim2.new(1, -30, 0, 5)
 CloseBtn.BackgroundTransparency = 1
-CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 18
 CloseBtn.Parent = MainFrame
@@ -89,24 +109,24 @@ CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 local MiniBtn = Instance.new("TextButton")
 MiniBtn.Text = "-"
 MiniBtn.Size = UDim2.new(0, 30, 0, 30)
-MiniBtn.Position = UDim2.new(1, -60, 0, 0)
+MiniBtn.Position = UDim2.new(1, -60, 0, 5)
 MiniBtn.BackgroundTransparency = 1
-MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 100)
+MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 MiniBtn.Font = Enum.Font.GothamBold
 MiniBtn.TextSize = 24
 MiniBtn.Parent = MainFrame
 
 local FloatIcon = Instance.new("TextButton")
-FloatIcon.Size = UDim2.new(0, 45, 0, 45)
+FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-FloatIcon.Text = "W"
+FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+FloatIcon.Text = "X"
 FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
 FloatIcon.Font = Enum.Font.GothamBlack
-FloatIcon.TextSize = 20
+FloatIcon.TextSize = 24
 FloatIcon.Visible = false
 FloatIcon.Parent = ScreenGui
-Instance.new("UICorner", FloatIcon).CornerRadius = UDim.new(1, 0)
+Instance.new("UICorner", FloatIcon).CornerRadius = UDim.new(0.5, 0)
 
 MiniBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; FloatIcon.Visible = true end)
 FloatIcon.MouseButton1Click:Connect(function() FloatIcon.Visible = false; MainFrame.Visible = true end)
@@ -118,7 +138,7 @@ local function createToggle(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.85, 0, 0, 40)
     btn.Position = UDim2.new(0.075, 0, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     btn.Text = text .. ": OFF"
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.Gotham
@@ -132,19 +152,20 @@ local function createToggle(text, yPos, callback)
         callback(enabled)
         if enabled then
             btn.Text = text .. ": ON"
-            btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+            btn.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
         else
             btn.Text = text .. ": OFF"
-            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         end
     end)
 end
 
 -- ==============================================================================
--- LÓGICA V21: SINCRONIZADA E RÁPIDA
+-- LÓGICA DO SCRIPT
 -- ==============================================================================
 
--- 1. SCANNER (0.1s - 10x por segundo)
+-- 1. SCANNER DE PAPÉIS (WornItems)
+-- Monitora constantemente se os itens sumiram da pasta do jogador
 task.spawn(function()
     while true do
         if settings.esp then
@@ -153,26 +174,27 @@ task.spawn(function()
             if charactersFolder then
                 for _, charFolder in pairs(charactersFolder:GetChildren()) do
                     local playerName = charFolder.Name
+                    
                     if playerName ~= LocalPlayer.Name then
-                        
-                        -- Lógica de Ausência (O que sumiu?)
+                        -- Lógica confirmada:
+                        -- Se NÃO TEM WornKnife = ASSASSINO
                         if not charFolder:FindFirstChild("WornKnife") then
                             roleMemory[playerName] = "Murderer"
                         end
 
+                        -- Se NÃO TEM WornGun = XERIFE
                         if not charFolder:FindFirstChild("WornGun") then
                             roleMemory[playerName] = "Sheriff"
                         end
-                        
                     end
                 end
             end
         end
-        task.wait(0.1) -- RÁPIDO
+        task.wait(0.1) -- Rápido
     end
 end)
 
--- 2. VISUAL (0.1s - Acompanha o Scanner)
+-- 2. ESP VISUAL (Wallhack)
 task.spawn(function()
     while true do
         if settings.esp then
@@ -185,21 +207,19 @@ task.spawn(function()
                     if not char then char = plr.Character end
 
                     if char and char:FindFirstChild("Head") then
-                        -- Pega o papel da memória
                         local role = roleMemory[plr.Name]
-                        
-                        local color = Color3.fromRGB(255, 255, 255)
+                        local color = Color3.fromRGB(255, 255, 255) -- Branco (Padrão)
                         local txt = "Inocente"
 
                         if role == "Murderer" then
-                            color = Color3.fromRGB(255, 0, 0) -- VERMELHO
+                            color = Color3.fromRGB(255, 0, 0) -- Vermelho
                             txt = "ASSASSINO"
                         elseif role == "Sheriff" then
-                            color = Color3.fromRGB(0, 100, 255) -- AZUL
+                            color = Color3.fromRGB(0, 100, 255) -- Azul
                             txt = "XERIFE"
                         end
 
-                        -- Highlight
+                        -- Highlight (Brilho no corpo)
                         local hl = char:FindFirstChild("WerbertHighlight")
                         if not hl then 
                             hl = Instance.new("Highlight", char) 
@@ -209,7 +229,7 @@ task.spawn(function()
                         hl.FillColor = color
                         hl.OutlineColor = color
                         
-                        -- Tag
+                        -- Tag (Nome na cabeça)
                         local bg = char.Head:FindFirstChild("WerbertTag")
                         if not bg then
                             bg = Instance.new("BillboardGui", char.Head)
@@ -230,7 +250,7 @@ task.spawn(function()
                 end
             end
         else
-            -- Limpeza
+            -- Limpeza quando desliga
             for _, plr in pairs(Players:GetPlayers()) do
                 local char = plr.Character
                 if char then
@@ -239,11 +259,11 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.1) -- AGORA É RÁPIDO TAMBÉM (Era 0.5s)
+        task.wait(0.1)
     end
 end)
 
--- 3. ARMA AZUL (0.2s - Um pouco mais leve pois a arma não corre)
+-- 3. ESP ARMA (AZUL NEON)
 task.spawn(function()
     while true do
         if settings.gunEsp then
@@ -299,11 +319,35 @@ task.spawn(function()
                 end
             end
         end
+        task.wait(0.5)
+    end
+end)
+
+-- 4. SPEED (Velocidade 24)
+task.spawn(function()
+    while true do
+        if settings.speed then
+            pcall(function() LocalPlayer.Character.Humanoid.WalkSpeed = 24 end)
+        end
         task.wait(0.2)
     end
 end)
 
--- X-RAY
+-- 5. FULLBRIGHT (Luz Infinita)
+task.spawn(function()
+    while true do
+        if settings.fullbright then
+            pcall(function()
+                Lighting.ClockTime = 12
+                Lighting.Brightness = 2
+                Lighting.GlobalShadows = false
+            end)
+        end
+        task.wait(1)
+    end
+end)
+
+-- 6. X-RAY
 local function toggleXray(state)
     if state then
         for _, part in pairs(Workspace:GetDescendants()) do
@@ -322,17 +366,19 @@ local function toggleXray(state)
     end
 end
 
--- RESET
+-- RESET AO MUDAR DE MAPA
 local function resetDetection()
     roleMemory = {} 
-    game.StarterGui:SetCore("SendNotification", {Title = "RODADA NOVA"; Text = "Memória Limpa!"; Duration = 3;})
+    game.StarterGui:SetCore("SendNotification", {Title = "ASSASSINO LOUCO X"; Text = "Novo Jogo Iniciado!"; Duration = 3;})
 end
 LocalPlayer.CharacterAdded:Connect(resetDetection)
 Workspace.ChildAdded:Connect(function(c) if c.Name == "Map" then resetDetection() end end)
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Fast Scan)", 50, function(state) settings.esp = state end)
-createToggle("ESP ARMA (Azul)", 100, function(state) settings.gunEsp = state end)
-createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
+createToggle("ESP PLAYERS (Auto-Detect)", 50, function(state) settings.esp = state end)
+createToggle("ESP ARMA (Azul)", 95, function(state) settings.gunEsp = state end)
+createToggle("X-RAY (Paredes)", 140, function(state) settings.xray = state; toggleXray(state) end)
+createToggle("SPEED (Correr +)", 185, function(state) settings.speed = state end)
+createToggle("FULLBRIGHT (Luz)", 230, function(state) settings.fullbright = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V21", Text="Tudo em 0.1s!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V25", Text="Script Carregado!", Duration=5})
