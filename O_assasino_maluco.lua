@@ -1,8 +1,9 @@
 --[[ 
-    WERBERT HUB V26 - EVENT BASED (ZERO DELAY)
+    WERBERT HUB V27 - CORREÇÃO DE FALSO POSITIVO
     Criador: @werbert_ofc
-    Técnica: Usa .ChildRemoved para detectar o sumiço no exato frame que acontece.
-    É impossível ser mais rápido que isso.
+    Correção:
+    - Assassino: Detecta pelo sumiço da WornKnife (Mantido).
+    - Xerife: Só marca se a WornGun sumir E o WorldModel estiver presente (Trava de Segurança).
 ]]
 
 local Players = game:GetService("Players")
@@ -24,18 +25,17 @@ local settings = {
     fullbright = false
 }
 
--- Memória (Armazena os papéis descobertos)
 local roleMemory = {} 
-local monitoredFolders = {} -- Para não monitorar a mesma pasta 2 vezes
+local monitoredFolders = {} 
 
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- INTERFACE (MANTIDA IGUAL V25)
+-- INTERFACE (V1)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V26_Event"
+ScreenGui.Name = "WerbertHub_V27_Fix"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -66,7 +66,7 @@ end
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 260, 0, 320)
 MainFrame.Position = UDim2.new(0.5, -130, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20) -- Mais escuro, mais pro
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -75,8 +75,8 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "ASSASSINO LOUCO X (V26)"
-Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.Text = "ASSASSINO LOUCO X (V27)"
+Title.TextColor3 = Color3.fromRGB(0, 255, 150)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 15
 Title.Parent = MainFrame
@@ -85,8 +85,8 @@ local Credits = Instance.new("TextLabel")
 Credits.Size = UDim2.new(1, 0, 0, 15)
 Credits.Position = UDim2.new(0, 0, 0, 25)
 Credits.BackgroundTransparency = 1
-Credits.Text = "Modo Evento (Zero Delay)"
-Credits.TextColor3 = Color3.fromRGB(0, 255, 150)
+Credits.Text = "Correção de Xerife"
+Credits.TextColor3 = Color3.fromRGB(150, 150, 150)
 Credits.Font = Enum.Font.Gotham
 Credits.TextSize = 10
 Credits.Parent = MainFrame
@@ -115,11 +115,11 @@ MiniBtn.Parent = MainFrame
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-FloatIcon.Text = "X"
-FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+FloatIcon.Text = "V27"
+FloatIcon.TextColor3 = Color3.fromRGB(0, 0, 0)
 FloatIcon.Font = Enum.Font.GothamBlack
-FloatIcon.TextSize = 24
+FloatIcon.TextSize = 18
 FloatIcon.Visible = false
 FloatIcon.Parent = ScreenGui
 Instance.new("UICorner", FloatIcon).CornerRadius = UDim.new(0.5, 0)
@@ -157,73 +157,82 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- LÓGICA V26: DETECÇÃO POR EVENTOS (.ChildRemoved)
--- ESSA É A PARTE QUE FAZ ELE SER INSTANTÂNEO
+-- LÓGICA V27: CORREÇÃO DE DUPLA VERIFICAÇÃO
 -- ==============================================================================
 
--- Função que "vigia" uma pasta específica
 local function monitorCharacterFolder(folder)
-    -- Se já estiver vigiando essa pasta, ignora
     if monitoredFolders[folder] then return end
     monitoredFolders[folder] = true
 
     local playerName = folder.Name
     
-    -- Checagem Inicial (Caso o script tenha sido ativado atrasado)
-    if not folder:FindFirstChild("WornKnife") then roleMemory[playerName] = "Murderer" end
-    if not folder:FindFirstChild("WornGun") then roleMemory[playerName] = "Sheriff" end
+    -- Checagem Inicial (Só para Assassino, Xerife vamos esperar confirmação)
+    if not folder:FindFirstChild("WornKnife") then 
+        roleMemory[playerName] = "Murderer" 
+    end
 
-    -- O DETECTOR DE EVENTO: Dispara no momento exato que algo sai da pasta
+    -- EVENTO: Dispara quando um item SOME da pasta
     folder.ChildRemoved:Connect(function(child)
         if not settings.esp then return end
         
-        -- Se o que saiu for a WornKnife, marca Assassin
+        -- LÓGICA DO ASSASSINO (Mantida - Funciona bem)
         if child.Name == "WornKnife" then
             roleMemory[playerName] = "Murderer"
         
-        -- Se o que saiu for a WornGun, marca Xerife
+        -- LÓGICA DO XERIFE (Corrigida - Com Trava de Segurança)
         elseif child.Name == "WornGun" then
-            roleMemory[playerName] = "Sheriff"
+            -- NÃO marca na hora. Espera um pouquinho para ver se a arma aparece na mão.
+            task.delay(0.2, function()
+                -- Só é Xerife se a arma sumiu das costas E apareceu na mão (WorldModel)
+                if folder:FindFirstChild("WorldModel") then
+                    roleMemory[playerName] = "Sheriff"
+                else
+                    -- Se a arma sumiu das costas mas NÃO tem nada na mão,
+                    -- é bug do jogo ou lag, então ignoramos (continua Inocente).
+                end
+            end)
+        end
+    end)
+
+    -- EVENTO: Dispara quando um item ENTRA na pasta (Para pegar o Heroi)
+    folder.ChildAdded:Connect(function(child)
+        if not settings.esp then return end
+
+        -- Se apareceu um WorldModel na mão de alguém que não é assassino
+        if child.Name == "WorldModel" then
+            if roleMemory[playerName] ~= "Murderer" then
+                roleMemory[playerName] = "Sheriff"
+            end
         end
     end)
 end
 
--- Função para conectar novos jogadores que entram no mapa
 local function startMonitoring()
     local charactersFolder = Workspace:FindFirstChild("Characters")
     if charactersFolder then
-        -- Monitora quem já está lá
         for _, folder in pairs(charactersFolder:GetChildren()) do
             monitorCharacterFolder(folder)
         end
-        
-        -- Monitora quem entrar depois (ChildAdded na pasta Characters)
-        charactersFolder.ChildAdded:Connect(function(newFolder)
-            monitorCharacterFolder(newFolder)
-        end)
+        charactersFolder.ChildAdded:Connect(monitorCharacterFolder)
     end
 end
 
--- Inicia o sistema
 startMonitoring()
 
--- Backup: Se o mapa resetar, reinicia o monitoramento
 Workspace.ChildAdded:Connect(function(child)
     if child.Name == "Characters" then
-        task.wait(1) -- Espera carregar os itens
+        task.wait(1)
         startMonitoring()
     end
 end)
 
 
 -- ==============================================================================
--- VISUAL RENDER (ATUALIZAÇÃO DE TELA)
+-- VISUAL (ESP)
 -- ==============================================================================
 
--- Loop visual apenas para desenhar os destaques (A lógica já foi feita nos eventos)
 RunService.RenderStepped:Connect(function()
     if not settings.esp then 
-        -- Limpeza
         for _, plr in pairs(Players:GetPlayers()) do
             if plr.Character and plr.Character:FindFirstChild("WerbertHighlight") then
                 plr.Character.WerbertHighlight:Destroy()
@@ -244,22 +253,17 @@ RunService.RenderStepped:Connect(function()
             if char and char:FindFirstChild("Head") then
                 local role = roleMemory[plr.Name]
                 
-                -- Só desenha se tivermos certeza do papel (ou deixa branco se quiser ver todos)
                 local color = Color3.fromRGB(255, 255, 255)
                 local txt = "Inocente"
-                local priority = 0
 
                 if role == "Murderer" then
                     color = Color3.fromRGB(255, 0, 0)
                     txt = "ASSASSINO"
-                    priority = 2
                 elseif role == "Sheriff" then
                     color = Color3.fromRGB(0, 100, 255)
                     txt = "XERIFE"
-                    priority = 1
                 end
 
-                -- Highlight
                 local hl = char:FindFirstChild("WerbertHighlight")
                 if not hl then 
                     hl = Instance.new("Highlight", char) 
@@ -269,7 +273,6 @@ RunService.RenderStepped:Connect(function()
                 hl.FillColor = color
                 hl.OutlineColor = color
                 
-                -- Tag
                 local bg = char.Head:FindFirstChild("WerbertTag")
                 if not bg then
                     bg = Instance.new("BillboardGui", char.Head)
@@ -291,7 +294,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ESP ARMA (AZUL NEON)
+-- ESP ARMA
 task.spawn(function()
     while true do
         if settings.gunEsp then
@@ -347,7 +350,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.2)
+        task.wait(0.5)
     end
 end)
 
@@ -396,18 +399,18 @@ end
 -- RESET TOTAL
 local function resetDetection()
     roleMemory = {} 
-    monitoredFolders = {} -- Reseta os monitores
-    game.StarterGui:SetCore("SendNotification", {Title = "HUB V26"; Text = "Monitoramento Reiniciado!"; Duration = 3;})
-    startMonitoring() -- Reconecta os eventos
+    monitoredFolders = {} 
+    game.StarterGui:SetCore("SendNotification", {Title = "HUB V27"; Text = "Resetado & Corrigido!"; Duration = 3;})
+    startMonitoring() 
 end
 LocalPlayer.CharacterAdded:Connect(resetDetection)
 Workspace.ChildAdded:Connect(function(c) if c.Name == "Map" then resetDetection() end end)
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Evento)", 50, function(state) settings.esp = state end)
+createToggle("ESP PLAYERS (Correção)", 50, function(state) settings.esp = state end)
 createToggle("ESP ARMA (Azul)", 95, function(state) settings.gunEsp = state end)
 createToggle("X-RAY (Paredes)", 140, function(state) settings.xray = state; toggleXray(state) end)
 createToggle("SPEED (Correr +)", 185, function(state) settings.speed = state end)
 createToggle("FULLBRIGHT (Luz)", 230, function(state) settings.fullbright = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V26", Text="Tecnologia Event-Based Ativa!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V27", Text="Falso-Positivo Corrigido!", Duration=5})
