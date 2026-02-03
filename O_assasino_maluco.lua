@@ -1,7 +1,9 @@
 --[[ 
-    WERBERT HUB V13 - CORREÇÃO WORLDMODEL (LÓGICA V9/V10 RESTAURADA)
+    WERBERT HUB V15 - LÓGICA DE TROCA (SWAP)
     Criador: @werbert_ofc
-    Lógica: Detecta APENAS 'WorldModel' na pasta Characters. Sem falso-positivo.
+    Lógica Exata:
+    - WorldModel Apareceu + WornKnife Sumiu = ASSASSINO
+    - WorldModel Apareceu + WornGun Sumiu = XERIFE
 ]]
 
 local Players = game:GetService("Players")
@@ -19,18 +21,19 @@ local settings = {
     xray = false      
 }
 
-local knownArmed = {} 
+-- Tabela para salvar quem é quem
+local knownRoles = {} -- [Player] = "Murderer" ou "Sheriff"
 local originalTransparency = {}
 
 -- Limpa UI antiga
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- MENU VISUAL (SIMPLES E FUNCIONAL)
+-- MENU VISUAL (SIMPLES E CONFIÁVEL)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V13"
+ScreenGui.Name = "WerbertHub_V15"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -62,7 +65,7 @@ end
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 250, 0, 240)
 MainFrame.Position = UDim2.new(0.5, -125, 0.5, -120)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -73,7 +76,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
 Title.Text = "Criador: @werbert_ofc"
-Title.TextColor3 = Color3.fromRGB(0, 255, 150)
+Title.TextColor3 = Color3.fromRGB(0, 255, 100)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
 Title.Parent = MainFrame
@@ -84,7 +87,7 @@ CloseBtn.Text = "X"
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -30, 0, 0)
 CloseBtn.BackgroundTransparency = 1
-CloseBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 18
 CloseBtn.Parent = MainFrame
@@ -125,7 +128,7 @@ local function createToggle(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.85, 0, 0, 40)
     btn.Position = UDim2.new(0.075, 0, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     btn.Text = text .. ": OFF"
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.Gotham
@@ -142,16 +145,15 @@ local function createToggle(text, yPos, callback)
             btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
         else
             btn.Text = text .. ": OFF"
-            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
         end
     end)
 end
 
 -- ==============================================================================
--- LÓGICA V13: APENAS WORLDMODEL (A QUE FUNCIONOU)
+-- LÓGICA V15: A "TROCA" (SWAP)
 -- ==============================================================================
 
--- 1. SCANNER ESTRITO (Sem Tools, sem nomes estranhos, SÓ WorldModel)
 task.spawn(function()
     while true do
         if settings.esp then
@@ -159,18 +161,34 @@ task.spawn(function()
             
             if charactersFolder then
                 for _, charFolder in pairs(charactersFolder:GetChildren()) do
-                    -- Verifica se existe o objeto WorldModel (Pelo nome ou Classe)
-                    if charFolder:FindFirstChild("WorldModel") or charFolder:FindFirstChildWhichIsA("WorldModel") then
+                    local player = Players:FindFirstChild(charFolder.Name)
+                    
+                    if player and player ~= LocalPlayer then
                         
-                        local player = Players:FindFirstChild(charFolder.Name)
-                        if player then
-                            knownArmed[player] = true
+                        -- GATILHO: A arma apareceu (WorldModel)
+                        -- Agora verificamos o que sumiu!
+                        if charFolder:FindFirstChild("WorldModel") then
+                            
+                            -- Se a WornKnife SUMIU, é Assassino
+                            if not charFolder:FindFirstChild("WornKnife") then
+                                knownRoles[player] = "Murderer"
+                            
+                            -- Se a WornGun SUMIU, é Xerife
+                            elseif not charFolder:FindFirstChild("WornGun") then
+                                knownRoles[player] = "Sheriff"
+                            
+                            -- Caso Especial: Se ele pegou a arma do chão (Heroi)
+                            -- Ele ainda vai ter a WornKnife e a WornGun, mas tem o WorldModel da arma
+                            elseif charFolder:FindFirstChild("WornKnife") and charFolder:FindFirstChild("WornGun") then
+                                knownRoles[player] = "Sheriff" -- Heroi conta como Xerife
+                            end
+                            
                         end
                     end
                 end
             end
         end
-        task.wait(0.1) -- Verifica rápido
+        task.wait(0.1) -- Rápido para pegar a troca exata
     end
 end)
 
@@ -182,20 +200,25 @@ task.spawn(function()
 
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= LocalPlayer then
-                    -- Tenta pegar o char na pasta Characters (Prioridade)
+                    -- Busca o personagem
                     local char = nil
                     if charactersFolder then char = charactersFolder:FindFirstChild(plr.Name) end
-                    -- Se não achar lá, pega o do Workspace normal
                     if not char then char = plr.Character end
 
                     if char and char:FindFirstChild("Head") then
-                        local color = Color3.fromRGB(255, 255, 255) 
-                        local txt = "Inocente"
+                        local role = knownRoles[plr]
                         
-                        -- SÓ MUDA SE TIVER NA LISTA DE 'WORLDMODEL'
-                        if knownArmed[plr] then
+                        -- Cores Padrão
+                        local color = Color3.fromRGB(255, 255, 255) -- Inocente (Branco)
+                        local txt = "Inocente"
+
+                        -- Aplica Cores Baseado na Memória (Tabela)
+                        if role == "Murderer" then
                             color = Color3.fromRGB(255, 0, 0) -- VERMELHO
-                            txt = "PERIGO (ARMADO)"
+                            txt = "ASSASSINO"
+                        elseif role == "Sheriff" then
+                            color = Color3.fromRGB(0, 100, 255) -- AZUL
+                            txt = "XERIFE"
                         end
 
                         -- Highlight
@@ -229,7 +252,7 @@ task.spawn(function()
                 end
             end
         else
-            -- Limpar
+            -- Limpeza
             for _, plr in pairs(Players:GetPlayers()) do
                 local char = plr.Character
                 if char then
@@ -260,8 +283,8 @@ task.spawn(function()
                     if not gun:FindFirstChild("WerbertGunESP") then
                         local hl = Instance.new("Highlight")
                         hl.Name = "WerbertGunESP"
-                        hl.FillColor = Color3.fromRGB(0, 0, 255)
-                        hl.OutlineColor = Color3.fromRGB(0, 0, 255)
+                        hl.FillColor = Color3.fromRGB(0, 100, 255)
+                        hl.OutlineColor = Color3.fromRGB(0, 100, 255)
                         hl.FillTransparency = 0.4
                         hl.OutlineTransparency = 0
                         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -279,16 +302,16 @@ task.spawn(function()
                         txt.Size = UDim2.new(1,0,1,0)
                         txt.BackgroundTransparency = 1
                         txt.Text = "ARMA"
-                        txt.TextColor3 = Color3.fromRGB(0, 100, 255)
+                        txt.TextColor3 = Color3.fromRGB(0, 200, 255)
                         txt.Font = Enum.Font.GothamBlack
-                        txt.TextSize = 14
+                        txt.TextSize = 12
                         txt.TextStrokeTransparency = 0
                         txt.Parent = bg
                     end
                 end
             end
         else
-            for _, c in pairs(Workspace:GetChildren()) do
+             for _, c in pairs(Workspace:GetChildren()) do
                 if c.Name == "Entities" then
                     local gun = c:FindFirstChild("DroppedGun")
                     if gun then
@@ -321,18 +344,17 @@ local function toggleXray(state)
     end
 end
 
--- RESET AO SPAWNAR (IMPORTANTE)
+-- RESET AO SPAWNAR
 local function resetDetection()
-    knownArmed = {} 
-    game.StarterGui:SetCore("SendNotification", {Title = "HUB V13"; Text = "Resetado (WorldModel Only)"; Duration = 3;})
+    knownRoles = {} -- Zera tudo
+    game.StarterGui:SetCore("SendNotification", {Title = "HUB V15"; Text = "Resetado! Aguardando troca."; Duration = 3;})
 end
 LocalPlayer.CharacterAdded:Connect(resetDetection)
 Workspace.ChildAdded:Connect(function(c) if c.Name == "Map" then resetDetection() end end)
 
-
 -- BOTÕES
-createToggle("ESP PLAYERS (WorldModel)", 50, function(state) settings.esp = state end)
+createToggle("ESP PLAYERS (Lógica Troca)", 50, function(state) settings.esp = state end)
 createToggle("ESP ARMA (Azul)", 100, function(state) settings.gunEsp = state end)
 createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V13", Text="Lógica WorldModel Ativada!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V15", Text="Scanner de WornItems Ativo!", Duration=5})
