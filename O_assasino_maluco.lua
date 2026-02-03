@@ -1,10 +1,11 @@
 --[[ 
-    WERBERT HUB V30 - DELAY SEGURO (10 SEGUNDOS)
+    WERBERT HUB V31 - GATILHO DE MOVIMENTO + HÍBRIDO
     Criador: @werbert_ofc
-    Alteração:
-    - O script espera 10 segundos após o spawn para fazer a verificação inicial.
-    - Isso garante que todos os itens carregaram, evitando marcar inocentes no início.
-    - Detecção de SAQUE (puxar arma) continua instantânea.
+    
+    Como funciona agora:
+    1. O script aguarda você ANDAR para iniciar a contagem.
+    2. Durante os 10s de segurança: Só marca se ver a ARMA NA MÃO (WorldModel).
+    3. Após os 10s: Ativa a detecção por sumiço de itens (WornKnife/Gun).
 ]]
 
 local Players = game:GetService("Players")
@@ -28,6 +29,8 @@ local settings = {
 
 local roleMemory = {} 
 local monitoredFolders = {} 
+local safetyPeriodOver = false -- Trava de segurança
+local gameStarted = false -- Só ativa quando você anda
 
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
@@ -36,7 +39,7 @@ if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V30_10s"
+ScreenGui.Name = "WerbertHub_V31_MoveTrigger"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -65,9 +68,9 @@ local function makeDraggable(frame)
 end
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 260, 0, 320)
-MainFrame.Position = UDim2.new(0.5, -130, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+MainFrame.Size = UDim2.new(0, 260, 0, 340)
+MainFrame.Position = UDim2.new(0.5, -130, 0.5, -170)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -76,21 +79,21 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "ASSASSINO LOUCO X (V30)"
-Title.TextColor3 = Color3.fromRGB(0, 255, 150)
+Title.Text = "ASSASSINO LOUCO X (V31)"
+Title.TextColor3 = Color3.fromRGB(255, 50, 50)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 15
 Title.Parent = MainFrame
 
-local Credits = Instance.new("TextLabel")
-Credits.Size = UDim2.new(1, 0, 0, 15)
-Credits.Position = UDim2.new(0, 0, 0, 25)
-Credits.BackgroundTransparency = 1
-Credits.Text = "Delay Inicial: 10 Segundos"
-Credits.TextColor3 = Color3.fromRGB(150, 150, 150)
-Credits.Font = Enum.Font.Gotham
-Credits.TextSize = 10
-Credits.Parent = MainFrame
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, 0, 0, 15)
+StatusLabel.Position = UDim2.new(0, 0, 0, 30)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Aguardando Movimento..."
+StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextSize = 11
+StatusLabel.Parent = MainFrame
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "X"
@@ -116,9 +119,9 @@ MiniBtn.Parent = MainFrame
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
-FloatIcon.Text = "V30"
-FloatIcon.TextColor3 = Color3.fromRGB(0, 0, 0)
+FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+FloatIcon.Text = "V31"
+FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
 FloatIcon.Font = Enum.Font.GothamBlack
 FloatIcon.TextSize = 18
 FloatIcon.Visible = false
@@ -158,56 +161,101 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- LÓGICA V30: DELAY DE 10 SEGUNDOS + MEMÓRIA
+-- SISTEMA DE GATILHO DE MOVIMENTO
+-- ==============================================================================
+
+local function ActivateSafetyTimer()
+    if gameStarted then return end
+    gameStarted = true
+    
+    StatusLabel.Text = "Calibrando (10s)..."
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 150, 0) -- Laranja
+    
+    -- Espera 10 segundos
+    task.wait(10)
+    
+    safetyPeriodOver = true
+    StatusLabel.Text = "SISTEMA ATIVO (FULL)"
+    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0) -- Verde
+    
+    game.StarterGui:SetCore("SendNotification", {Title = "Hub V31"; Text = "Calibração Concluída!"; Duration = 3;})
+end
+
+-- Monitora se o jogador andou
+task.spawn(function()
+    while true do
+        if not gameStarted then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("Humanoid") then
+                -- Se a velocidade for maior que 0 (Andou)
+                if char.Humanoid.MoveDirection.Magnitude > 0 then
+                    ActivateSafetyTimer()
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+end)
+
+-- ==============================================================================
+-- LÓGICA V31: HÍBRIDA (INSTANTÂNEA + SEGURA)
 -- ==============================================================================
 
 local function monitorCharacterFolder(folder)
     if monitoredFolders[folder] then return end
     monitoredFolders[folder] = true
-
     local playerName = folder.Name
-    
-    -- [ATUALIZAÇÃO] Delay de 10 Segundos
-    task.spawn(function()
-        task.wait(10) -- Agora espera 10s para ter certeza que tudo carregou
-        if not folder.Parent then return end
-        
-        -- Checagem Inicial (Após 10s)
-        if not folder:FindFirstChild("WornKnife") then 
-            roleMemory[playerName] = "Murderer" 
-        end
-        if not folder:FindFirstChild("WornGun") and folder:FindFirstChild("WorldModel") then
-            roleMemory[playerName] = "Sheriff"
-        end
-    end)
 
-    -- EVENTO: Detecção Instantânea (Isso funciona MESMO durante os 10s de espera)
-    -- Se ele puxar a faca no segundo 5, o script PEGA NA HORA.
+    -- [REGRA 1] MONITORAMENTO DE ITENS
     folder.ChildRemoved:Connect(function(child)
         if not settings.esp then return end
         
-        if child.Name == "WornKnife" then
-            roleMemory[playerName] = "Murderer"
-        
-        elseif child.Name == "WornGun" then
-            task.delay(0.2, function()
-                if folder:FindFirstChild("WorldModel") then
-                    roleMemory[playerName] = "Sheriff"
-                end
-            end)
+        -- SÓ ATIVA essa detecção depois dos 10 segundos
+        -- Isso impede marcar inocentes que ainda não carregaram
+        if safetyPeriodOver then
+            if child.Name == "WornKnife" then
+                roleMemory[playerName] = "Murderer"
+            elseif child.Name == "WornGun" then
+                -- Trava do Xerife (Segurança extra)
+                task.delay(0.2, function()
+                    if folder:FindFirstChild("WorldModel") then
+                        roleMemory[playerName] = "Sheriff"
+                    end
+                end)
+            end
         end
     end)
 
-    -- EVENTO: Heroi
+    -- [REGRA 2] DETECÇÃO DE ARMA NA MÃO (PRIORIDADE MÁXIMA)
+    -- Essa regra funciona SEMPRE, mesmo nos 10 segundos de espera.
+    -- Se puxou a arma, é culpado. Não precisa esperar carregar nada.
     folder.ChildAdded:Connect(function(child)
         if not settings.esp then return end
 
         if child.Name == "WorldModel" then
-            if roleMemory[playerName] ~= "Murderer" then
+            -- Se apareceu arma na mão, precisamos saber o que é
+            
+            -- Se não tem WornKnife na pasta, é Assassino (Confirmado)
+            if not folder:FindFirstChild("WornKnife") then
+                roleMemory[playerName] = "Murderer"
+            
+            -- Se não tem WornGun na pasta, é Xerife (Confirmado)
+            elseif not folder:FindFirstChild("WornGun") then
                 roleMemory[playerName] = "Sheriff"
+                
+            -- Se tem os dois e apareceu arma, é o HEROI (Pegou do chão)
+            else
+                if roleMemory[playerName] ~= "Murderer" then
+                    roleMemory[playerName] = "Sheriff"
+                end
             end
         end
     end)
+    
+    -- Checagem inicial imediata (Caso já esteja com a arma na mão ao carregar)
+    if folder:FindFirstChild("WorldModel") then
+         if not folder:FindFirstChild("WornKnife") then roleMemory[playerName] = "Murderer" end
+    end
 end
 
 local function startMonitoring()
@@ -392,18 +440,22 @@ end
 -- RESET TOTAL
 local function resetDetection()
     roleMemory = {} 
-    monitoredFolders = {} 
-    game.StarterGui:SetCore("SendNotification", {Title = "HUB V30"; Text = "Aguardando 10s para analisar..."; Duration = 3;})
+    monitoredFolders = {}
+    gameStarted = false -- Reseta o gatilho de movimento
+    safetyPeriodOver = false
+    StatusLabel.Text = "Aguardando Movimento..."
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+    
     startMonitoring() 
 end
 LocalPlayer.CharacterAdded:Connect(resetDetection)
 Workspace.ChildAdded:Connect(function(c) if c.Name == "Map" then resetDetection() end end)
 
 -- BOTÕES
-createToggle("ESP PLAYERS (10s Delay)", 50, function(state) settings.esp = state end)
-createToggle("ESP ARMA (Azul)", 95, function(state) settings.gunEsp = state end)
-createToggle("X-RAY (Paredes)", 140, function(state) settings.xray = state; toggleXray(state) end)
-createToggle("SPEED (Correr +)", 185, function(state) settings.speed = state end)
-createToggle("FULLBRIGHT (Luz)", 230, function(state) settings.fullbright = state end)
+createToggle("ESP PLAYERS (Move Trigger)", 60, function(state) settings.esp = state end)
+createToggle("ESP ARMA (Azul)", 105, function(state) settings.gunEsp = state end)
+createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
+createToggle("SPEED (Correr +)", 195, function(state) settings.speed = state end)
+createToggle("FULLBRIGHT (Luz)", 240, function(state) settings.fullbright = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V30", Text="Delay 10s Ativado!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V31", Text="Ande para ativar!", Duration=5})
