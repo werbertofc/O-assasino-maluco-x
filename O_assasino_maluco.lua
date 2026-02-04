@@ -1,14 +1,12 @@
 --[[ 
-    WERBERT HUB V48 - O OLHO QUE TUDO VÊ (SENSOR ABSOLUTO)
+    WERBERT HUB V49 - REAVALIAÇÃO COMPLETA (FIXED)
     Criador: @werbert_ofc
     
-    LÓGICA RÍGIDA:
-    1. Monitora APENAS 'WornKnife' e 'WornGun'.
-    2. Delay de 15s no início da partida (Todos Inocentes).
-    3. Após 15s:
-       - Se falta WornKnife -> ASSASSINO (Fixo até o fim).
-       - Se falta WornGun -> XERIFE (Pode haver múltiplos).
-    4. Reset apenas ao retornar para a área do Lobby (MapParts).
+    CORREÇÕES REAIS:
+    1. O sensor de "ChildRemoved" e "ChildAdded" agora fica ATIVO desde o início da partida.
+    2. Se o jogador puxar a arma durante a contagem de 15s, O SCRIPT PEGA!
+    3. A contagem de 15s serve apenas para não marcar inocentes que ainda estão carregando (Lag).
+    4. Detecção focada estritamente em 'WornKnife' e 'WornGun' conforme pedido.
 ]]
 
 local Players = game:GetService("Players")
@@ -30,21 +28,19 @@ local settings = {
     fullbright = false
 }
 
--- Tabela de memória: [NomeDoPlayer] = "Role"
 local roleMemory = {} 
--- Variáveis de Estado
-local isScannerActive = false 
+local passiveScannerActive = false -- Só controla a verificação de "quem não tem nada"
 local isInLobby = true
-local connections = {} -- Para guardar os sensores e limpar depois
+local connections = {}
 
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- INTERFACE (UI)
+-- INTERFACE
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V48_TheEye"
+ScreenGui.Name = "WerbertHub_V49_Fixed"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -75,9 +71,9 @@ end
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 260, 0, 360)
 MainFrame.Position = UDim2.new(0.5, -130, 0.5, -180)
-MainFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 5) -- Preto Profundo
-MainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-MainFrame.BorderSizePixel = 2
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 100)
+MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
@@ -85,8 +81,8 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.Text = "O OLHO V48 (SENSOR)"
-Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.Text = "HUB V49 (REAVALIADO)"
+Title.TextColor3 = Color3.fromRGB(0, 255, 100)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 16
 Title.Parent = MainFrame
@@ -125,11 +121,11 @@ MiniBtn.Parent = MainFrame
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-FloatIcon.Text = "👁️"
-FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+FloatIcon.Text = "V49"
+FloatIcon.TextColor3 = Color3.fromRGB(0, 0, 0)
 FloatIcon.Font = Enum.Font.GothamBlack
-FloatIcon.TextSize = 24
+FloatIcon.TextSize = 18
 FloatIcon.Visible = false
 FloatIcon.Parent = ScreenGui
 Instance.new("UICorner", FloatIcon).CornerRadius = UDim.new(0.5, 0)
@@ -167,68 +163,102 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- SENSORES E LÓGICA DE DETECÇÃO (O CORAÇÃO DO SCRIPT)
+-- 1. ANALISADOR DE PLAYER (CÉREBRO DO SCRIPT)
 -- ==============================================================================
 
--- Função que analisa um jogador individualmente
 local function analyzeTarget(character)
-    if not isScannerActive then return end -- Se não passou os 15s, não faz nada
     if not character then return end
-    
     local playerName = character.Name
+    if playerName == LocalPlayer.Name then return end
     
-    -- Se já sabemos que é o Assassino, não precisa checar mais (Memória Eterna)
+    -- Se já sabemos o papel, não muda (Memória Infinita)
     if roleMemory[playerName] == "Murderer" then return end
     
-    -- SENSOR 1: WornKnife (Faca nas costas)
-    -- Se NÃO tem a faca -> É o Assassino.
-    if not character:FindFirstChild("WornKnife") then
-        roleMemory[playerName] = "Murderer"
-        return -- Achamos o assassino, encerra análise deste player
+    -- Se estiver no Lobby, limpa e ignora
+    if isInLobby then 
+        roleMemory[playerName] = nil 
+        return 
+    end
+
+    local hasKnife = character:FindFirstChild("WornKnife")
+    local hasGun = character:FindFirstChild("WornGun")
+    
+    -- DETECÇÃO 1: ALGUÉM TIROU O ITEM (INSTANTÂNEO)
+    -- Isso roda SEMPRE, ignorando o timer de 15s.
+    -- Se a faca sumiu, ele É o assassino. Ponto.
+    
+    if not hasKnife then
+        -- Mas calma, só marcamos se o timer de 15s já passou OU se ele tem algo na mão.
+        -- Se estiver no começo da partida, pode ser lag de carregamento.
+        -- ENTÃO:
+        if passiveScannerActive or character:FindFirstChildWhichIsA("Tool") or character:FindFirstChild("WorldModel") then
+            roleMemory[playerName] = "Murderer"
+            return
+        end
     end
     
-    -- SENSOR 2: WornGun (Arma nas costas)
-    -- Se NÃO tem a arma -> É Xerife.
-    -- (Pode ter vários xerifes, então não damos return, apenas marcamos)
-    if not character:FindFirstChild("WornGun") then
-        -- Só marca se não for o assassino (segurança)
-        if roleMemory[playerName] ~= "Murderer" then
-            roleMemory[playerName] = "Sheriff"
+    if not hasGun then
+        if passiveScannerActive or character:FindFirstChildWhichIsA("Tool") or character:FindFirstChild("WorldModel") then
+            if roleMemory[playerName] ~= "Murderer" then
+                roleMemory[playerName] = "Sheriff"
+            end
+        end
+    end
+    
+    -- DETECÇÃO 2: ARMA NA MÃO (VISUAL)
+    local tool = character:FindFirstChildWhichIsA("Tool") or character:FindFirstChild("WorldModel")
+    if tool then
+        -- Se tem algo na mão e AINDA TEM WornGun -> É Faca na mão -> ASSASSINO
+        if hasGun then
+            roleMemory[playerName] = "Murderer"
+            return
+        end
+        -- Se tem algo na mão e AINDA TEM WornKnife -> É Arma na mão -> XERIFE
+        if hasKnife then
+            if roleMemory[playerName] ~= "Murderer" then
+                roleMemory[playerName] = "Sheriff"
+            end
         end
     end
 end
 
--- Função que conecta o sensor "ChildRemoved" na pasta do jogador
+-- ==============================================================================
+-- 2. SENSORES (OLHO VIGILANTE)
+-- ==============================================================================
+
 local function attachSensor(character)
-    -- Evita duplicar sensores no mesmo personagem
     if connections[character] then return end
     
-    -- SENSOR DE EVENTO: Dispara no milésimo de segundo que algo sai da pasta
-    local conn = character.ChildRemoved:Connect(function(child)
-        if not isScannerActive then return end -- Ignora se estiver no delay de 15s
-        
-        -- Verifica apenas os objetos solicitados
+    -- Sensor: Alguém tirou algo da pasta?
+    local c1 = character.ChildRemoved:Connect(function(child)
+        -- Observa SÓ os itens pedidos
         if child.Name == "WornKnife" or child.Name == "WornGun" then
             analyzeTarget(character)
         end
     end)
     
-    connections[character] = conn
+    -- Sensor: Alguém colocou algo na pasta? (Ex: Equipou arma)
+    local c2 = character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") or child.Name == "WorldModel" then
+            analyzeTarget(character)
+        end
+    end)
     
-    -- Faz uma análise inicial (caso já tenha tirado antes de conectar)
+    connections[character] = {c1, c2}
+    
+    -- Primeira análise rápida
     analyzeTarget(character)
 end
 
--- Limpa todas as conexões (usado no Reset)
 local function clearSensors()
-    for char, conn in pairs(connections) do
-        if conn then conn:Disconnect() end
+    for char, conns in pairs(connections) do
+        for _, c in pairs(conns) do c:Disconnect() end
     end
     connections = {}
 end
 
 -- ==============================================================================
--- GERENCIADOR DA PARTIDA (TIMER E ESTADOS)
+-- 3. GERENCIADOR DE PARTIDA (TIMER/LOBBY)
 -- ==============================================================================
 
 local function checkGameStatus()
@@ -244,53 +274,58 @@ local function checkGameStatus()
         if referencePart then
             local distance = (root.Position - referencePart.Position).Magnitude
             
-            -- ==========================================
-            -- ESTADO: DENTRO DO LOBBY (RESET TOTAL)
-            -- ==========================================
+            -- ====================
+            -- LOBBY (RESET)
+            -- ====================
             if distance < 300 then 
                 if not isInLobby then
                     isInLobby = true
-                    isScannerActive = false
-                    roleMemory = {} -- Limpa quem é quem
-                    clearSensors() -- Desliga os sensores
-                    
+                    passiveScannerActive = false
+                    roleMemory = {} -- RESET TOTAL
                     StatusLabel.Text = "STATUS: LOBBY (Resetado)"
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-                    game.StarterGui:SetCore("SendNotification", {Title="Hub V48", Text="Memória Limpa!", Duration=3})
+                    game.StarterGui:SetCore("SendNotification", {Title="Hub V49", Text="Lobby: Memória Limpa!", Duration=3})
                 end
                 
-            -- ==========================================
-            -- ESTADO: FORA DO LOBBY (PARTIDA)
-            -- ==========================================
+            -- ====================
+            -- PARTIDA (AÇÃO)
+            -- ====================
             else
                 if isInLobby then
-                    isInLobby = false -- Partida começou agora
+                    isInLobby = false
                     
-                    -- Limpa novamente para garantir que todos comecem inocentes
+                    -- Limpa no start para garantir
                     roleMemory = {} 
-                    isScannerActive = false 
+                    passiveScannerActive = false
                     
-                    -- Contagem Regressiva de 15 Segundos
+                    -- ATIVAÇÃO IMEDIATA DOS SENSORES (Mas com lógica de segurança)
+                    local chars = Workspace:FindFirstChild("Characters")
+                    if chars then
+                        for _, c in pairs(chars:GetChildren()) do
+                            attachSensor(c)
+                        end
+                    end
+                    
+                    -- Contagem 15s para liberar o "Scanner Passivo"
                     task.spawn(function()
                         for i = 15, 1, -1 do
-                            if isInLobby then return end -- Se voltar pro lobby, cancela
-                            StatusLabel.Text = "RESETADO: " .. i .. "s"
+                            if isInLobby then return end
+                            StatusLabel.Text = "CALIBRANDO: " .. i .. "s"
                             StatusLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
                             task.wait(1)
                         end
                         
-                        -- FIM DOS 15s: ATIVAÇÃO DOS OLHOS
+                        -- FIM DO TIMER
                         if not isInLobby then
-                            isScannerActive = true -- Libera a marcação
-                            StatusLabel.Text = "OLHO ATIVO: VIGIANDO"
-                            StatusLabel.TextColor3 = Color3.fromRGB(255, 0, 0) -- Vermelho Ameaçador
-                            game.StarterGui:SetCore("SendNotification", {Title="Hub V48", Text="Sensores Ativados!", Duration=3})
+                            passiveScannerActive = true -- AGORA olhamos quem "não tem nada"
+                            StatusLabel.Text = "STATUS: OLHO ABSOLUTO"
+                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                            game.StarterGui:SetCore("SendNotification", {Title="Hub V49", Text="Varredura Completa Liberada!", Duration=3})
                             
-                            -- Conecta os sensores em todos os jogadores presentes
-                            local chars = Workspace:FindFirstChild("Characters")
+                            -- Reanalisa todo mundo agora que o tempo passou
                             if chars then
                                 for _, c in pairs(chars:GetChildren()) do
-                                    attachSensor(c)
+                                    analyzeTarget(c)
                                 end
                             end
                         end
@@ -301,7 +336,6 @@ local function checkGameStatus()
     end
 end
 
--- Loop de Gerenciamento (Roda a cada 0.5s)
 task.spawn(function()
     while true do
         checkGameStatus()
@@ -309,18 +343,16 @@ task.spawn(function()
     end
 end)
 
--- Loop de Segurança (Reforço)
--- Caso um jogador entre depois ou o evento falhe, esse loop varre a cada 0.5s
--- Só funciona se o scanner estiver ativo (após os 15s)
+-- Monitoramento contínuo de novos players
 task.spawn(function()
     while true do
-        if settings.esp and isScannerActive then
+        if settings.esp and not isInLobby then
             local chars = Workspace:FindFirstChild("Characters")
             if chars then
                 for _, c in pairs(chars:GetChildren()) do
                     if c.Name ~= LocalPlayer.Name then
-                        attachSensor(c) -- Garante que o sensor está conectado
-                        analyzeTarget(c) -- Analisa o estado atual
+                        attachSensor(c) -- Garante sensor
+                        analyzeTarget(c) -- Garante análise
                     end
                 end
             end
@@ -330,7 +362,7 @@ task.spawn(function()
 end)
 
 -- ==============================================================================
--- VISUAL (ESP) - SÓ MOSTRA O QUE ESTÁ NA MEMÓRIA
+-- VISUAL (ESP)
 -- ==============================================================================
 
 RunService.RenderStepped:Connect(function()
@@ -355,21 +387,17 @@ RunService.RenderStepped:Connect(function()
             if char and char:FindFirstChild("Head") then
                 local role = roleMemory[plr.Name]
                 
-                -- Padrão: Inocente (Branco)
                 local color = Color3.fromRGB(255, 255, 255)
                 local txt = "Inocente"
 
-                -- Se a memória diz que é Assassino, pinta de Vermelho
                 if role == "Murderer" then
                     color = Color3.fromRGB(255, 0, 0)
                     txt = "ASSASSINO"
-                -- Se a memória diz que é Xerife, pinta de Azul
                 elseif role == "Sheriff" then
                     color = Color3.fromRGB(0, 100, 255)
                     txt = "XERIFE"
                 end
 
-                -- Aplica visual
                 local hl = char:FindFirstChild("WerbertHighlight")
                 if not hl then 
                     hl = Instance.new("Highlight", char) 
@@ -400,7 +428,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ESP ARMA (Item no chão)
+-- ESP ARMA
 task.spawn(function()
     while true do
         if settings.gunEsp then
@@ -503,10 +531,4 @@ local function toggleXray(state)
 end
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Olho V48)", 60, function(state) settings.esp = state end)
-createToggle("ESP ARMA (Azul)", 105, function(state) settings.gunEsp = state end)
-createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
-createToggle("SPEED (Correr +)", 195, function(state) settings.speed = state end)
-createToggle("FULLBRIGHT (Luz)", 240, function(state) settings.fullbright = state end)
-
-game.StarterGui:SetCore("SendNotification", {Title="Hub V48", Text="O Olho que Tudo Vê Ativado!", Duration=5})
+createToggle("ESP PLAYERS (Olho V49)", 60, function
