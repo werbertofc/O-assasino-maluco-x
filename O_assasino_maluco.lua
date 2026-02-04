@@ -1,12 +1,11 @@
 --[[ 
-    WERBERT HUB V54 - OMEGA SENSOR (TECNOLOGIA HÍBRIDA)
+    WERBERT HUB V55 - OMEGA SENSOR + UI FIX
     Criador: @werbert_ofc
     
-    TECNOLOGIA APLICADA:
-    1. Hybrid Detection: Combina 'ChildRemoved' (Eventos) com 'Heartbeat' (Loop Físico).
-    2. Taxa de Atualização: 60 verificações por segundo (impossível burlar).
-    3. Foco Cirúrgico: Monitora estritamente 'WornKnife' e 'WornGun' nas costas.
-    4. Proteção de Lag (15s): Impede falsos positivos no início da partida.
+    ATUALIZAÇÃO:
+    - Botão de Minimizar (-) restaurado.
+    - Ícone Flutuante para reabrir o menu.
+    - Mantida a Tecnologia Omega (Detecção Híbrida + Heartbeat 60x/s).
 ]]
 
 local Players = game:GetService("Players")
@@ -31,11 +30,11 @@ local isInLobby = true
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- INTERFACE (PREMIUM)
+-- INTERFACE (COM MINIMIZAR)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V54_Omega"
+ScreenGui.Name = "WerbertHub_V55_OmegaUI"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -76,7 +75,7 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
-Title.Text = "HUB V54 (OMEGA)"
+Title.Text = "HUB V55 (OMEGA)"
 Title.TextColor3 = Color3.fromRGB(255, 0, 0)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 18
@@ -93,6 +92,7 @@ StatusLabel.Font = Enum.Font.GothamBold
 StatusLabel.TextSize = 12
 StatusLabel.Parent = MainFrame
 
+-- BOTÃO FECHAR (X)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "X"
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -104,7 +104,43 @@ CloseBtn.TextSize = 18
 CloseBtn.Parent = MainFrame
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
+-- BOTÃO MINIMIZAR (-)
+local MiniBtn = Instance.new("TextButton")
+MiniBtn.Text = "-"
+MiniBtn.Size = UDim2.new(0, 30, 0, 30)
+MiniBtn.Position = UDim2.new(1, -60, 0, 0)
+MiniBtn.BackgroundTransparency = 1
+MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MiniBtn.Font = Enum.Font.GothamBold
+MiniBtn.TextSize = 24
+MiniBtn.Parent = MainFrame
+
+-- ÍCONE FLUTUANTE (QUANDO MINIMIZADO)
+local FloatIcon = Instance.new("TextButton")
+FloatIcon.Size = UDim2.new(0, 50, 0, 50)
+FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
+FloatIcon.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+FloatIcon.Text = "👁️"
+FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatIcon.Font = Enum.Font.GothamBlack
+FloatIcon.TextSize = 24
+FloatIcon.Visible = false
+FloatIcon.Parent = ScreenGui
+Instance.new("UICorner", FloatIcon).CornerRadius = UDim.new(0.5, 0)
+
+-- LÓGICA DE MINIMIZAR
+MiniBtn.MouseButton1Click:Connect(function() 
+    MainFrame.Visible = false
+    FloatIcon.Visible = true 
+end)
+
+FloatIcon.MouseButton1Click:Connect(function() 
+    FloatIcon.Visible = false
+    MainFrame.Visible = true 
+end)
+
 makeDraggable(MainFrame)
+makeDraggable(FloatIcon)
 
 local function createToggle(text, yPos, callback)
     local btn = Instance.new("TextButton")
@@ -140,12 +176,11 @@ local function analyzePlayer(folder)
     local playerName = folder.Name
     if playerName == LocalPlayer.Name then return end
     
-    -- Memória Blindada (Não esquece jamais)
+    -- Memória Blindada
     if roleMemory[playerName] == "Murderer" then return end
 
     -- [A] SENSOR VISUAL (Instante Zero)
     -- Se aparecer qualquer ferramenta ou modelo na mão, analisamos NA HORA.
-    -- Isso funciona mesmo durante os 15s de delay.
     local equipped = folder:FindFirstChildOfClass("Tool") or folder:FindFirstChild("WorldModel")
     
     if equipped then
@@ -166,7 +201,6 @@ local function analyzePlayer(folder)
     end
 
     -- [B] SENSOR PASSIVO (Pós-Lag 15s)
-    -- Só analisamos "quem não tem nada" depois do tempo de segurança.
     if isPassiveScanActive then
         -- Sumiu WornKnife? -> ASSASSINO
         if not folder:FindFirstChild("WornKnife") then
@@ -185,8 +219,6 @@ end
 -- ==============================================================================
 -- 2. LOOP HEARTBEAT (A TECNOLOGIA ULTRA BOA)
 -- ==============================================================================
--- Este loop roda junto com a física do jogo (60 FPS).
--- Ele garante que NENHUM movimento passe despercebido, mesmo se o evento falhar.
 
 RunService.Heartbeat:Connect(function()
     -- 1. Gerenciamento de Estado (Lobby vs Partida)
@@ -229,7 +261,7 @@ RunService.Heartbeat:Connect(function()
                                 isPassiveScanActive = true
                                 StatusLabel.Text = "OMEGA SENSOR: ATIVO"
                                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                                game.StarterGui:SetCore("SendNotification", {Title="Hub V54", Text="Sensores Maximizados!", Duration=3})
+                                game.StarterGui:SetCore("SendNotification", {Title="Hub V55", Text="Sensores Maximizados!", Duration=3})
                             end
                         end)
                     end
@@ -380,4 +412,4 @@ end)
 createToggle("OMEGA SENSOR (Players)", 60, function(state) settings.esp = state end)
 createToggle("ESP GUN (Arma)", 110, function(state) settings.gunEsp = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V54", Text="Tecnologia Omega Ativa!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V55", Text="Minimizar Adicionado!", Duration=5})
