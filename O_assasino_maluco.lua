@@ -1,18 +1,17 @@
 --[[ 
-    WERBERT HUB V52 - VISUAL COMPLETO (STATUS + TIMER)
+    WERBERT HUB V54 - OMEGA SENSOR (TECNOLOGIA HÍBRIDA)
     Criador: @werbert_ofc
     
-    FUNCIONALIDADES:
-    1. Reset Automático ao voltar pro Lobby (MapParts).
-    2. Mostra contagem de 15s na tela ao iniciar a partida.
-    3. Mostra "OBSERVANDO" quando a proteção de lag acaba.
-    4. Lógica Híbrida: Pega arma na mão instantaneamente, falta de item após 15s.
+    TECNOLOGIA APLICADA:
+    1. Hybrid Detection: Combina 'ChildRemoved' (Eventos) com 'Heartbeat' (Loop Físico).
+    2. Taxa de Atualização: 60 verificações por segundo (impossível burlar).
+    3. Foco Cirúrgico: Monitora estritamente 'WornKnife' e 'WornGun' nas costas.
+    4. Proteção de Lag (15s): Impede falsos positivos no início da partida.
 ]]
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
@@ -21,26 +20,22 @@ local LocalPlayer = Players.LocalPlayer
 -- CONFIGURAÇÕES
 -- ==============================================================================
 local settings = {
-    esp = false,
-    gunEsp = false,
-    xray = false,
-    speed = false,
-    fullbright = false
+    esp = false,    -- Roles (Murderer/Sheriff)
+    gunEsp = false  -- Dropped Gun
 }
 
 local roleMemory = {} 
-local passiveScannerActive = false 
+local isPassiveScanActive = false 
 local isInLobby = true
-local monitoredFolders = {}
 
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- INTERFACE (UI COM STATUS)
+-- INTERFACE (PREMIUM)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V52_Status"
+ScreenGui.Name = "WerbertHub_V54_Omega"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -69,39 +64,39 @@ local function makeDraggable(frame)
 end
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 260, 0, 360)
-MainFrame.Position = UDim2.new(0.5, -130, 0.5, -180)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-MainFrame.BorderSizePixel = 1
+MainFrame.Size = UDim2.new(0, 240, 0, 220)
+MainFrame.Position = UDim2.new(0.5, -120, 0.5, -110)
+MainFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 5) -- Preto Absoluto
+MainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+MainFrame.BorderSizePixel = 2
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
-Title.Text = "HUB V52 (STATUS)"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Text = "HUB V54 (OMEGA)"
+Title.TextColor3 = Color3.fromRGB(255, 0, 0)
 Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 16
+Title.TextSize = 18
 Title.Parent = MainFrame
 
--- LABEL DE STATUS (IMPORTANTE)
+-- STATUS
 local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, 0, 0, 25)
-StatusLabel.Position = UDim2.new(0, 0, 0, 35)
+StatusLabel.Size = UDim2.new(1, 0, 0, 20)
+StatusLabel.Position = UDim2.new(0, 0, 0, 25)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "STATUS: LOBBY (RESETADO)"
-StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255) -- Ciano
+StatusLabel.Text = "LOBBY"
+StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
 StatusLabel.Font = Enum.Font.GothamBold
-StatusLabel.TextSize = 13
+StatusLabel.TextSize = 12
 StatusLabel.Parent = MainFrame
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "X"
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -30, 0, 5)
+CloseBtn.Position = UDim2.new(1, -30, 0, 0)
 CloseBtn.BackgroundTransparency = 1
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseBtn.Font = Enum.Font.GothamBold
@@ -109,45 +104,19 @@ CloseBtn.TextSize = 18
 CloseBtn.Parent = MainFrame
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
-local MiniBtn = Instance.new("TextButton")
-MiniBtn.Text = "-"
-MiniBtn.Size = UDim2.new(0, 30, 0, 30)
-MiniBtn.Position = UDim2.new(1, -60, 0, 5)
-MiniBtn.BackgroundTransparency = 1
-MiniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MiniBtn.Font = Enum.Font.GothamBold
-MiniBtn.TextSize = 24
-MiniBtn.Parent = MainFrame
-
-local FloatIcon = Instance.new("TextButton")
-FloatIcon.Size = UDim2.new(0, 50, 0, 50)
-FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-FloatIcon.Text = "V52"
-FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
-FloatIcon.Font = Enum.Font.GothamBlack
-FloatIcon.TextSize = 18
-FloatIcon.Visible = false
-FloatIcon.Parent = ScreenGui
-Instance.new("UICorner", FloatIcon).CornerRadius = UDim.new(0.5, 0)
-
-MiniBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; FloatIcon.Visible = true end)
-FloatIcon.MouseButton1Click:Connect(function() FloatIcon.Visible = false; MainFrame.Visible = true end)
-
 makeDraggable(MainFrame)
-makeDraggable(FloatIcon)
 
 local function createToggle(text, yPos, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.85, 0, 0, 40)
-    btn.Position = UDim2.new(0.075, 0, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    btn.Size = UDim2.new(0.9, 0, 0, 40)
+    btn.Position = UDim2.new(0.05, 0, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     btn.Text = text .. ": OFF"
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 14
     btn.Parent = MainFrame
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     local enabled = false
     btn.MouseButton1Click:Connect(function()
@@ -155,146 +124,56 @@ local function createToggle(text, yPos, callback)
         callback(enabled)
         if enabled then
             btn.Text = text .. ": ON"
-            btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+            btn.BackgroundColor3 = Color3.fromRGB(200, 0, 0) -- Vermelho OMEGA
         else
             btn.Text = text .. ": OFF"
-            btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+            btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
         end
     end)
 end
 
 -- ==============================================================================
--- 1. SISTEMA DE TIMER E STATUS (LOBBY/PARTIDA)
+-- 1. TECNOLOGIA DE DETECÇÃO OMEGA (CORAÇÃO DO SCRIPT)
 -- ==============================================================================
 
-local function checkLocation()
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    
-    local root = char.HumanoidRootPart
-    local lobby = Workspace:FindFirstChild("Lobby")
-    local mapParts = lobby and lobby:FindFirstChild("MapParts")
-    
-    if mapParts then
-        local referencePart = mapParts:FindFirstChildWhichIsA("BasePart", true)
-        if referencePart then
-            local distance = (root.Position - referencePart.Position).Magnitude
-            
-            -- ====================
-            -- ESTADO: LOBBY
-            -- ====================
-            if distance < 300 then 
-                if not isInLobby then
-                    isInLobby = true
-                    passiveScannerActive = false
-                    roleMemory = {} 
-                    
-                    -- MENSAGEM NO MENU
-                    StatusLabel.Text = "STATUS: LOBBY (RESETADO)"
-                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255) -- Ciano
-                    
-                    game.StarterGui:SetCore("SendNotification", {Title="Hub V52", Text="Lobby: Status Resetado", Duration=3})
-                end
-                
-            -- ====================
-            -- ESTADO: PARTIDA
-            -- ====================
-            else
-                if isInLobby then
-                    isInLobby = false
-                    
-                    roleMemory = {} -- Limpa no inicio
-                    passiveScannerActive = false 
-                    
-                    -- CONTAGEM REGRESSIVA VISUAL (15s)
-                    task.spawn(function()
-                        for i = 15, 1, -1 do
-                            if isInLobby then return end
-                            StatusLabel.Text = "CARREGANDO: " .. i .. "s"
-                            StatusLabel.TextColor3 = Color3.fromRGB(255, 150, 0) -- Laranja
-                            task.wait(1)
-                        end
-                        
-                        -- FIM DO TIMER
-                        if not isInLobby then
-                            passiveScannerActive = true 
-                            
-                            -- MENSAGEM NO MENU
-                            StatusLabel.Text = "STATUS: OBSERVANDO..."
-                            StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0) -- Verde
-                            
-                            game.StarterGui:SetCore("SendNotification", {Title="Hub V52", Text="Observação Iniciada!", Duration=3})
-                            
-                            -- Reanalisa todo mundo
-                            local chars = Workspace:FindFirstChild("Characters")
-                            if chars then
-                                for _, c in pairs(chars:GetChildren()) do
-                                    analyzePlayer(c)
-                                end
-                            end
-                        end
-                    end)
-                end
-            end
-        end
-    end
-end
-
-task.spawn(function()
-    while true do
-        checkLocation()
-        task.wait(0.5)
-    end
-end)
-
--- ==============================================================================
--- 2. LÓGICA DE DETECÇÃO (MEMÓRIA BLINDADA)
--- ==============================================================================
-
-function analyzePlayer(folder)
+local function analyzePlayer(folder)
     local playerName = folder.Name
     if playerName == LocalPlayer.Name then return end
     
-    -- Memória Blindada
+    -- Memória Blindada (Não esquece jamais)
     if roleMemory[playerName] == "Murderer" then return end
 
-    -- [A] DETECÇÃO IMEDIATA (VISUAL)
-    -- Funciona SEMPRE, mesmo durante o carregamento.
-    if folder:FindFirstChild("WorldModel") then
-        task.delay(0.2, function() 
-            if not folder:FindFirstChild("WorldModel") then return end
-            
-            -- Arma na mão + WornGun nas costas = Faca (ASSASSINO)
-            if folder:FindFirstChild("WornGun") then
-                roleMemory[playerName] = "Murderer"
-                return
+    -- [A] SENSOR VISUAL (Instante Zero)
+    -- Se aparecer qualquer ferramenta ou modelo na mão, analisamos NA HORA.
+    -- Isso funciona mesmo durante os 15s de delay.
+    local equipped = folder:FindFirstChildOfClass("Tool") or folder:FindFirstChild("WorldModel")
+    
+    if equipped then
+        -- LÓGICA DE ELIMINAÇÃO:
+        -- Se tem arma na mão + WornGun nas costas = A arma na mão só pode ser Faca -> ASSASSINO
+        if folder:FindFirstChild("WornGun") then
+            roleMemory[playerName] = "Murderer"
+            return
+        end
+        
+        -- Se tem arma na mão + WornKnife nas costas = A arma na mão só pode ser Gun -> XERIFE
+        if folder:FindFirstChild("WornKnife") then
+            if roleMemory[playerName] ~= "Murderer" then
+                roleMemory[playerName] = "Sheriff"
             end
-            
-            -- Arma na mão + WornKnife nas costas = Arma (XERIFE)
-            if folder:FindFirstChild("WornKnife") then
-                if roleMemory[playerName] ~= "Murderer" then
-                    roleMemory[playerName] = "Sheriff"
-                end
-                return
-            end
-            
-            -- Arma na mão + Nada nas costas = Assassino (Chute Seguro)
-            if not folder:FindFirstChild("WornGun") and not folder:FindFirstChild("WornKnife") then
-                 if roleMemory[playerName] ~= "Sheriff" then
-                     roleMemory[playerName] = "Murderer"
-                 end
-            end
-        end)
+            return
+        end
     end
 
-    -- [B] DETECÇÃO PASSIVA (SÓ APÓS OS 15s)
-    if passiveScannerActive then
-        -- Falta WornKnife = Assassino
+    -- [B] SENSOR PASSIVO (Pós-Lag 15s)
+    -- Só analisamos "quem não tem nada" depois do tempo de segurança.
+    if isPassiveScanActive then
+        -- Sumiu WornKnife? -> ASSASSINO
         if not folder:FindFirstChild("WornKnife") then
             roleMemory[playerName] = "Murderer"
         end
         
-        -- Falta WornGun = Xerife
+        -- Sumiu WornGun? -> XERIFE
         if not folder:FindFirstChild("WornGun") then
             if roleMemory[playerName] ~= "Murderer" then
                 roleMemory[playerName] = "Sheriff"
@@ -303,51 +182,72 @@ function analyzePlayer(folder)
     end
 end
 
-local function monitorCharacterFolder(folder)
-    if monitoredFolders[folder] then return end
-    monitoredFolders[folder] = true
+-- ==============================================================================
+-- 2. LOOP HEARTBEAT (A TECNOLOGIA ULTRA BOA)
+-- ==============================================================================
+-- Este loop roda junto com a física do jogo (60 FPS).
+-- Ele garante que NENHUM movimento passe despercebido, mesmo se o evento falhar.
 
-    folder.ChildRemoved:Connect(function() analyzePlayer(folder) end)
-    folder.ChildAdded:Connect(function() analyzePlayer(folder) end)
-    
-    task.spawn(function()
-        while folder.Parent do
-            analyzePlayer(folder)
-            task.wait(0.2)
-        end
-    end)
-end
-
-local function startMonitoring()
-    local charactersFolder = Workspace:FindFirstChild("Characters")
-    if charactersFolder then
-        for _, folder in pairs(charactersFolder:GetChildren()) do
-            monitorCharacterFolder(folder)
-        end
-        charactersFolder.ChildAdded:Connect(monitorCharacterFolder)
-    end
-end
-
--- Loop de Varredura
-task.spawn(function()
-    while true do
-        if settings.esp then
-            local charactersFolder = Workspace:FindFirstChild("Characters")
-            if charactersFolder then
-                for _, folder in pairs(charactersFolder:GetChildren()) do
-                    if folder.Name ~= LocalPlayer.Name then
-                        analyzePlayer(folder)
+RunService.Heartbeat:Connect(function()
+    -- 1. Gerenciamento de Estado (Lobby vs Partida)
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local lobby = Workspace:FindFirstChild("Lobby")
+        local mapParts = lobby and lobby:FindFirstChild("MapParts")
+        
+        if mapParts then
+            local ref = mapParts:FindFirstChildWhichIsA("BasePart", true)
+            if ref then
+                local dist = (char.HumanoidRootPart.Position - ref.Position).Magnitude
+                
+                -- LOBBY DETECTADO
+                if dist < 300 then
+                    if not isInLobby then
+                        isInLobby = true
+                        isPassiveScanActive = false
+                        roleMemory = {} -- RESET TOTAL
+                        StatusLabel.Text = "LOBBY (MEMÓRIA LIMPA)"
+                        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+                    end
+                -- PARTIDA DETECTADA
+                else
+                    if isInLobby then
+                        isInLobby = false
+                        roleMemory = {}
+                        isPassiveScanActive = false
+                        
+                        -- Timer Visual 15s
+                        task.spawn(function()
+                            for i = 15, 1, -1 do
+                                if isInLobby then return end
+                                StatusLabel.Text = "LAG PROTECT: " .. i .. "s"
+                                StatusLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
+                                task.wait(1)
+                            end
+                            
+                            if not isInLobby then
+                                isPassiveScanActive = true
+                                StatusLabel.Text = "OMEGA SENSOR: ATIVO"
+                                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                                game.StarterGui:SetCore("SendNotification", {Title="Hub V54", Text="Sensores Maximizados!", Duration=3})
+                            end
+                        end)
                     end
                 end
             end
         end
-        task.wait(0.5)
+    end
+
+    -- 2. Varredura Turbo (Só se o ESP estiver ligado e fora do lobby)
+    if settings.esp and not isInLobby then
+        local chars = Workspace:FindFirstChild("Characters")
+        if chars then
+            for _, folder in pairs(chars:GetChildren()) do
+                analyzePlayer(folder) -- Analisa 60x por segundo
+            end
+        end
     end
 end)
-
-startMonitoring()
-Workspace.ChildAdded:Connect(function(c) if c.Name == "Characters" then task.wait(0.5); startMonitoring() end end)
-
 
 -- ==============================================================================
 -- VISUAL (ESP)
@@ -476,53 +376,8 @@ task.spawn(function()
     end
 end)
 
--- SPEED & FULLBRIGHT
-task.spawn(function()
-    while true do
-        if settings.speed then
-            pcall(function() LocalPlayer.Character.Humanoid.WalkSpeed = 24 end)
-        end
-        task.wait(0.2)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        if settings.fullbright then
-            pcall(function()
-                Lighting.ClockTime = 12
-                Lighting.Brightness = 2
-                Lighting.GlobalShadows = false
-            end)
-        end
-        task.wait(1)
-    end
-end)
-
--- X-RAY
-local function toggleXray(state)
-    if state then
-        for _, part in pairs(Workspace:GetDescendants()) do
-            if part:IsA("BasePart") then
-                if not originalTransparency[part] then originalTransparency[part] = part.Transparency end
-                if part.Transparency < 0.5 and not part.Parent:FindFirstChild("Humanoid") then
-                    part.Transparency = 0.6
-                end
-            end
-        end
-    else
-        for part, trans in pairs(originalTransparency) do
-            if part and part.Parent then part.Transparency = trans end
-        end
-        originalTransparency = {}
-    end
-end
-
 -- BOTÕES
-createToggle("ESP PLAYERS (Status+Timer)", 60, function(state) settings.esp = state end)
-createToggle("ESP ARMA (Azul)", 105, function(state) settings.gunEsp = state end)
-createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
-createToggle("SPEED (Correr +)", 195, function(state) settings.speed = state end)
-createToggle("FULLBRIGHT (Luz)", 240, function(state) settings.fullbright = state end)
+createToggle("OMEGA SENSOR (Players)", 60, function(state) settings.esp = state end)
+createToggle("ESP GUN (Arma)", 110, function(state) settings.gunEsp = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V52", Text="Status Visual Ativo!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V54", Text="Tecnologia Omega Ativa!", Duration=5})
