@@ -1,12 +1,13 @@
 --[[ 
-    WERBERT HUB V56 - LOOP PURO (SEM EVENTOS)
+    WERBERT HUB V57 - SENSOR DE EVENTOS (CLÁSSICO)
     Criador: @werbert_ofc
     
-    LÓGICA SIMPLIFICADA:
-    1. Não usa ChildAdded/ChildRemoved (Eventos).
-    2. Usa Varredura Constante (Heartbeat Loop).
-    3. Começa todo mundo como Inocente (Branco).
-    4. Menu com Minimizar (-) funcionando.
+    LÓGICA SOLICITADA:
+    1. Monitora a pasta Workspace.Characters.
+    2. Usa o evento .ChildRemoved dentro da pasta de cada jogador.
+    3. Se sumir WornKnife = Assassino.
+    4. Se sumir WornGun = Xerife.
+    5. Menu Limpo com Minimizar (-).
 ]]
 
 local Players = game:GetService("Players")
@@ -25,16 +26,17 @@ local settings = {
 }
 
 local roleMemory = {} 
+local connectedCharacters = {} -- Evita conectar 2x no mesmo boneco
 local isInLobby = true
 
 if getgenv().WerbertUI then getgenv().WerbertUI:Destroy() end
 
 -- ==============================================================================
--- INTERFACE (COM MINIMIZAR FUNCIONAL)
+-- INTERFACE (MINIMALISTA + MINIMIZAR)
 -- ==============================================================================
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WerbertHub_V56_Loop"
+ScreenGui.Name = "WerbertHub_V57_Events"
 if pcall(function() ScreenGui.Parent = CoreGui end) then
     getgenv().WerbertUI = ScreenGui
 else
@@ -42,7 +44,6 @@ else
     getgenv().WerbertUI = ScreenGui
 end
 
--- Função de Arrastar
 local function makeDraggable(frame)
     local dragging, dragInput, dragStart, startPos
     local function update(input)
@@ -63,12 +64,12 @@ local function makeDraggable(frame)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- JANELA PRINCIPAL
+-- JANELA
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 220, 0, 180)
 MainFrame.Position = UDim2.new(0.5, -110, 0.5, -90)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MainFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 0)
 MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
@@ -78,8 +79,8 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundTransparency = 1
-Title.Text = "HUB V56 (LOOP)"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Text = "HUB V57 (EVENTOS)"
+Title.TextColor3 = Color3.fromRGB(0, 255, 0)
 Title.Font = Enum.Font.GothamBlack
 Title.TextSize = 16
 Title.Parent = MainFrame
@@ -89,8 +90,8 @@ local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, 0, 0, 20)
 StatusLabel.Position = UDim2.new(0, 0, 0, 25)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "LOBBY"
-StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+StatusLabel.Text = "AGUARDANDO..."
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 StatusLabel.Font = Enum.Font.GothamBold
 StatusLabel.TextSize = 12
 StatusLabel.Parent = MainFrame
@@ -118,14 +119,14 @@ MiniBtn.Font = Enum.Font.GothamBold
 MiniBtn.TextSize = 24
 MiniBtn.Parent = MainFrame
 
--- ÍCONE FLUTUANTE (ABRIR)
+-- ÍCONE FLUTUANTE
 local FloatIcon = Instance.new("TextButton")
 FloatIcon.Size = UDim2.new(0, 50, 0, 50)
 FloatIcon.Position = UDim2.new(0.1, 0, 0.2, 0)
-FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-FloatIcon.BorderColor3 = Color3.fromRGB(255, 255, 255)
+FloatIcon.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+FloatIcon.BorderColor3 = Color3.fromRGB(0, 255, 0)
 FloatIcon.BorderSizePixel = 1
-FloatIcon.Text = "HUB"
+FloatIcon.Text = "V57"
 FloatIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
 FloatIcon.Font = Enum.Font.GothamBlack
 FloatIcon.TextSize = 14
@@ -133,21 +134,12 @@ FloatIcon.Visible = false
 FloatIcon.Parent = ScreenGui
 Instance.new("UICorner", FloatIcon).CornerRadius = UDim.new(0.5, 0)
 
--- LÓGICA DO MINIMIZAR
-MiniBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
-    FloatIcon.Visible = true
-end)
-
-FloatIcon.MouseButton1Click:Connect(function()
-    FloatIcon.Visible = false
-    MainFrame.Visible = true
-end)
+MiniBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; FloatIcon.Visible = true end)
+FloatIcon.MouseButton1Click:Connect(function() FloatIcon.Visible = false; MainFrame.Visible = true end)
 
 makeDraggable(MainFrame)
 makeDraggable(FloatIcon)
 
--- CRIAÇÃO DE TOGGLES
 local function createToggle(text, yPos, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.9, 0, 0, 40)
@@ -166,7 +158,7 @@ local function createToggle(text, yPos, callback)
         callback(enabled)
         if enabled then
             btn.Text = text .. ": ON"
-            btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+            btn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
         else
             btn.Text = text .. ": OFF"
             btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -175,91 +167,135 @@ local function createToggle(text, yPos, callback)
 end
 
 -- ==============================================================================
--- 1. LOOP DE LÓGICA (NOVO CORAÇÃO DO SCRIPT)
+-- 1. SISTEMA DE SENSORES DE EVENTO (A MÁGICA)
 -- ==============================================================================
--- Isso substitui os eventos. Roda a cada frame.
 
-RunService.Heartbeat:Connect(function()
+local function attachSensor(characterFolder)
+    -- Se já conectamos nesse personagem, ignora
+    if connectedCharacters[characterFolder] then return end
+    connectedCharacters[characterFolder] = true
     
-    -- [A] CHECAR ONDE ESTAMOS (LOBBY OU PARTIDA)
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local lobby = Workspace:FindFirstChild("Lobby")
-        local mapParts = lobby and lobby:FindFirstChild("MapParts")
+    local playerName = characterFolder.Name
+    
+    -- EVENTO: Dispara no momento EXATO que algo sai da pasta
+    characterFolder.ChildRemoved:Connect(function(child)
+        -- Se estiver no Lobby, não faz nada
+        if isInLobby then return end
         
-        if mapParts then
-            local ref = mapParts:FindFirstChildWhichIsA("BasePart", true)
-            if ref then
-                local dist = (char.HumanoidRootPart.Position - ref.Position).Magnitude
-                
-                -- Se estiver perto do mapa (< 300 studs) -> LOBBY
-                if dist < 300 then
-                    if not isInLobby then
-                        isInLobby = true
-                        roleMemory = {} -- RESET TOTAL
-                        StatusLabel.Text = "LOBBY (RESETADO)"
-                        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-                    end
-                -- Se estiver longe -> PARTIDA
-                else
-                    if isInLobby then
-                        isInLobby = false
-                        roleMemory = {} -- Limpa ao começar
-                        StatusLabel.Text = "PARTIDA (VARREDURA ATIVA)"
-                        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                        game.StarterGui:SetCore("SendNotification", {Title="Hub V56", Text="Scanner Ativado!", Duration=3})
-                    end
-                end
+        -- LÓGICA DE DETECÇÃO PEDIDA
+        if child.Name == "WornKnife" then
+            -- Se saiu a faca -> É ASSASSINO
+            roleMemory[playerName] = "Murderer"
+        elseif child.Name == "WornGun" then
+            -- Se saiu a arma -> É XERIFE (desde que não seja assassino)
+            if roleMemory[playerName] ~= "Murderer" then
+                roleMemory[playerName] = "Sheriff"
+            end
+        end
+    end)
+    
+    -- Varredura inicial (caso ele já tenha tirado antes do script ligar)
+    if not isInLobby then
+        if not characterFolder:FindFirstChild("WornKnife") then
+            roleMemory[playerName] = "Murderer"
+        elseif not characterFolder:FindFirstChild("WornGun") then
+            if roleMemory[playerName] ~= "Murderer" then
+                roleMemory[playerName] = "Sheriff"
             end
         end
     end
+end
 
-    -- [B] VARREDURA DE JOGADORES (SÓ SE O ESP ESTIVER LIGADO)
-    if settings.esp and not isInLobby then
-        local charactersFolder = Workspace:FindFirstChild("Characters")
-        if charactersFolder then
-            for _, folder in pairs(charactersFolder:GetChildren()) do
-                local playerName = folder.Name
-                if playerName ~= LocalPlayer.Name then
-                    
-                    -- Se já sabemos quem é, não precisa checar (Memória)
-                    if roleMemory[playerName] == "Murderer" then continue end
-                    
-                    -- DETECÇÃO 1: FALTAM ITENS?
-                    if not folder:FindFirstChild("WornKnife") then
-                        roleMemory[playerName] = "Murderer"
-                    elseif not folder:FindFirstChild("WornGun") then
-                        if roleMemory[playerName] ~= "Murderer" then
-                            roleMemory[playerName] = "Sheriff"
-                        end
-                    end
-                    
-                    -- DETECÇÃO 2: ITEM NA MÃO? (CONFIRMAÇÃO)
-                    local tool = folder:FindFirstChildOfClass("Tool") or folder:FindFirstChild("WorldModel")
-                    if tool then
-                        if folder:FindFirstChild("WornGun") then
-                            roleMemory[playerName] = "Murderer" -- Arma nas costas + algo na mão = FACA
-                        elseif folder:FindFirstChild("WornKnife") then
-                            if roleMemory[playerName] ~= "Murderer" then
-                                roleMemory[playerName] = "Sheriff" -- Faca nas costas + algo na mão = ARMA
-                            end
-                        end
-                    end
-                    
-                end
-            end
+local function setupSensors()
+    local charactersFolder = Workspace:FindFirstChild("Characters")
+    if charactersFolder then
+        -- Conecta nos jogadores que já estão lá
+        for _, folder in pairs(charactersFolder:GetChildren()) do
+            attachSensor(folder)
         end
+        
+        -- Conecta nos jogadores que entrarem depois
+        charactersFolder.ChildAdded:Connect(function(folder)
+            attachSensor(folder)
+        end)
+    end
+end
+
+-- Inicia os sensores
+setupSensors()
+-- Caso a pasta Characters seja recriada (reset do mapa)
+Workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Characters" then
+        task.wait(0.5)
+        setupSensors()
     end
 end)
 
+-- ==============================================================================
+-- 2. GERENCIADOR DE LOBBY (RESET)
+-- ==============================================================================
+
+local function checkLocation()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
+    local root = char.HumanoidRootPart
+    local lobby = Workspace:FindFirstChild("Lobby")
+    local mapParts = lobby and lobby:FindFirstChild("MapParts")
+    
+    if mapParts then
+        local ref = mapParts:FindFirstChildWhichIsA("BasePart", true)
+        if ref then
+            local dist = (char.HumanoidRootPart.Position - ref.Position).Magnitude
+            
+            -- LOBBY DETECTADO
+            if dist < 300 then
+                if not isInLobby then
+                    isInLobby = true
+                    roleMemory = {} -- RESET DA MEMÓRIA
+                    StatusLabel.Text = "STATUS: LOBBY (Limpo)"
+                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+                end
+            -- PARTIDA DETECTADA
+            else
+                if isInLobby then
+                    isInLobby = false
+                    roleMemory = {} -- Garante limpeza ao começar
+                    StatusLabel.Text = "STATUS: PARTIDA (Eventos ON)"
+                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                    game.StarterGui:SetCore("SendNotification", {Title="Hub V57", Text="Monitorando Pastas...", Duration=3})
+                    
+                    -- Força varredura nos players atuais
+                    local cf = Workspace:FindFirstChild("Characters")
+                    if cf then
+                        for _, f in pairs(cf:GetChildren()) do
+                            -- Reaplica lógica inicial
+                            if not f:FindFirstChild("WornKnife") then roleMemory[f.Name] = "Murderer" end
+                            if not f:FindFirstChild("WornGun") then 
+                                if roleMemory[f.Name] ~= "Murderer" then roleMemory[f.Name] = "Sheriff" end 
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Loop lento (só pra checar lobby)
+task.spawn(function()
+    while true do
+        checkLocation()
+        task.wait(0.5)
+    end
+end)
 
 -- ==============================================================================
--- VISUAL (ESP) - RODA A CADA FRAME VISUAL
+-- VISUAL (ESP)
 -- ==============================================================================
 
 RunService.RenderStepped:Connect(function()
     if not settings.esp then 
-        -- Limpa se desligar
         for _, plr in pairs(Players:GetPlayers()) do
             if plr.Character and plr.Character:FindFirstChild("WerbertHighlight") then
                 plr.Character.WerbertHighlight:Destroy()
@@ -274,14 +310,13 @@ RunService.RenderStepped:Connect(function()
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then
             local char = nil
-            -- MM2 usa uma pasta customizada "Characters", tenta achar lá primeiro
             if charactersFolder then char = charactersFolder:FindFirstChild(plr.Name) end
             if not char then char = plr.Character end
 
             if char and char:FindFirstChild("Head") then
                 local role = roleMemory[plr.Name]
                 
-                -- PADRÃO: BRANCO / INOCENTE
+                -- TODO MUNDO COMEÇA BRANCO (INOCENTE)
                 local color = Color3.fromRGB(255, 255, 255)
                 local txt = "Inocente"
 
@@ -293,7 +328,7 @@ RunService.RenderStepped:Connect(function()
                     txt = "XERIFE"
                 end
 
-                -- Highlight (Brilho)
+                -- Visual
                 local hl = char:FindFirstChild("WerbertHighlight")
                 if not hl then 
                     hl = Instance.new("Highlight", char) 
@@ -304,7 +339,6 @@ RunService.RenderStepped:Connect(function()
                 hl.OutlineColor = color
                 hl.FillTransparency = 0.5
                 
-                -- Texto (Nome + Role)
                 local bg = char.Head:FindFirstChild("WerbertTag")
                 if not bg then
                     bg = Instance.new("BillboardGui", char.Head)
@@ -326,14 +360,12 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ESP ARMA (LOOP SIMPLES)
+-- ESP ARMA
 task.spawn(function()
     while true do
         if settings.gunEsp then
-            -- Procura a arma caída no mapa
             local targetFolder = nil
             for _, c in pairs(Workspace:GetChildren()) do
-                -- Pasta onde as armas dropadas costumam ficar
                 if c.Name == "Entities" and not c:FindFirstChild("MapModel") then
                     targetFolder = c
                     break
@@ -373,7 +405,6 @@ task.spawn(function()
                 end
             end
         else
-            -- Limpa se desligar
              for _, c in pairs(Workspace:GetChildren()) do
                 if c.Name == "Entities" then
                     local gun = c:FindFirstChild("DroppedGun")
@@ -388,8 +419,8 @@ task.spawn(function()
     end
 end)
 
--- BOTÕES DE ATIVAÇÃO
-createToggle("ESP PLAYERS", 60, function(state) settings.esp = state end)
+-- BOTÕES
+createToggle("ESP PLAYERS (Roles)", 60, function(state) settings.esp = state end)
 createToggle("ESP ARMA", 110, function(state) settings.gunEsp = state end)
 
-game.StarterGui:SetCore("SendNotification", {Title="Hub V56", Text="Modo Loop Puro Ativo!", Duration=5})
+game.StarterGui:SetCore("SendNotification", {Title="Hub V57", Text="Sensores de Pasta Ativados!", Duration=5})
