@@ -531,4 +531,10 @@ local function toggleXray(state)
 end
 
 -- BOTÕES
-createToggle("ESP PLAYERS (Olho V49)", 60, function
+createToggle("ESP PLAYERS (Olho V49)", 60, function(state) settings.esp = state end)
+createToggle("ESP ARMA (Azul)", 105, function(state) settings.gunEsp = state end)
+createToggle("X-RAY (Paredes)", 150, function(state) settings.xray = state; toggleXray(state) end)
+createToggle("SPEED (Correr +)", 195, function(state) settings.speed = state end)
+createToggle("FULLBRIGHT (Luz)", 240, function(state) settings.fullbright = state end)
+
+game.StarterGui:SetCore("SendNotification", {Title="Hub V49", Text="Reavaliado e Corrigido!", Duration=5})
